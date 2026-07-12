@@ -1,0 +1,143 @@
+name: airlink3
+
+# Airlink FreeRADIUS Billing System v3.0 — Docker Desktop stack.
+# M0 brings up MariaDB (with the legacy dump loaded) + phpMyAdmin.
+# backend / queue / scheduler / frontend / freeradius services are added
+# in later milestones so `docker compose up` always works as we build.
+
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: airlink-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secret}
+      MARIADB_DATABASE: ${DB_DATABASE:-airlink}
+      MARIADB_USER: ${DB_USERNAME:-airlink}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/initdb.d:/docker-entrypoint-initdb.d:ro
+      - ./nalrd_backup.sql:/legacy/nalrd_backup.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  backend:
+    build:
+      context: ./docker/backend
+    container_name: airlink-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-airlink}
+      DB_USERNAME: ${DB_USERNAME:-airlink}
+      DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      RUN_MIGRATIONS: 1
+      RUN_SEED: 1
+      COMPOSER_PROCESS_TIMEOUT: 0
+    volumes:
+      - ./backend:/var/www/html
+      - ./docker/freeradius/clients.conf:/var/www/html/clients.conf:ro
+      # vendor lives in a fast Linux volume, not the slow Windows bind mount.
+      - backend_vendor:/var/www/html/vendor
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  queue:
+    build:
+      context: ./docker/backend
+    container_name: airlink-queue
+    restart: unless-stopped
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-airlink}
+      DB_USERNAME: ${DB_USERNAME:-airlink}
+      DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      RUN_MIGRATIONS: 0
+      RUN_SEED: 0
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=120"]
+    depends_on:
+      backend:
+        condition: service_started
+
+  scheduler:
+    build:
+      context: ./docker/backend
+    container_name: airlink-scheduler
+    restart: unless-stopped
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-airlink}
+      DB_USERNAME: ${DB_USERNAME:-airlink}
+      DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      RUN_MIGRATIONS: 0
+      RUN_SEED: 0
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./docker/frontend
+    container_name: airlink-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:${BACKEND_PORT:-8000}/api
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      backend:
+        condition: service_started
+
+  freeradius:
+    build:
+      context: ./docker/freeradius
+    container_name: airlink-freeradius
+    restart: unless-stopped
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: airlink-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 512M
+    ports:
+      - "${PMA_PORT:-8080}:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  mariadb_data:
+  backend_vendor:
+  frontend_node_modules:

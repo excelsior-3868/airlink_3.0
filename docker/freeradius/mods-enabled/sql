@@ -1,0 +1,45 @@
+# Airlink v3.0 — FreeRADIUS SQL module, pointed at the shared airlink DB.
+# Reads radcheck/radreply, writes radacct/radpostauth. Table names are the
+# FreeRADIUS defaults, which match our migrations exactly.
+sql {
+    dialect = "mysql"
+    driver  = "rlm_sql_${dialect}"
+
+    server   = "mariadb"
+    port     = 3306
+    login    = "airlink"
+    password = "airlink_pass"
+    radius_db = "airlink"
+
+    # Read dynamic clients from the database nas table.
+    read_clients = yes
+    client_table = "nas"
+
+    # Standard table names (match our schema).
+    acct_table1   = "radacct"
+    acct_table2   = "radacct"
+    postauth_table = "radpostauth"
+    authcheck_table = "radcheck"
+    authreply_table = "radreply"
+    groupcheck_table = "radgroupcheck"
+    groupreply_table = "radgroupreply"
+    usergroup_table = "radusergroup"
+    delete_stale_sessions = yes
+
+    pool {
+        start = 1
+        min   = 0
+        max   = 5
+        spare = 1
+        uses  = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+    }
+
+    read_groups = yes
+    group_attribute = "SQL-Group"
+
+    # Canonical query set shipped with the image.
+    $INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+}

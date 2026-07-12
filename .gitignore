@@ -1,0 +1,14 @@
+# Docker Compose env (secrets)
+/.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Node (frontend build tooling at root, if any)
+node_modules/
+
+# Legacy import artifacts
+backend/storage/app/legacy-import-report.json

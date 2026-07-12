@@ -1,0 +1,102 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\User;
+use App\Models\WalletTransaction;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class WalletService
+{
+    /**
+     * Move money from $from to $to (admin→reseller or reseller→seller "load",
+     * or reseller→seller "transfer"). Deducts the sender, credits the
+     * receiver, and records both sides — atomically.
+     */
+    public function transfer(User $from, User $to, float $amount, string $type = 'load', ?string $note = null, ?string $reference = null): void
+    {
+        if ($amount <= 0) {
+            throw ValidationException::withMessages(['amount' => 'Amount must be greater than zero.']);
+        }
+        if ($to->parent_id !== $from->id) {
+            throw ValidationException::withMessages(['user_id' => 'You can only load/transfer to your own direct downline.']);
+        }
+
+        DB::transaction(function () use ($from, $to, $amount, $type, $note, $reference) {
+            // Lock both rows to prevent concurrent double-spend.
+            $sender = User::whereKey($from->id)->lockForUpdate()->first();
+            $receiver = User::whereKey($to->id)->lockForUpdate()->first();
+
+            if ((float) $sender->wallet_balance < $amount) {
+                throw ValidationException::withMessages(['amount' => 'Not enough wallet balance.']);
+            }
+
+            $sender->decrement('wallet_balance', $amount);
+            $receiver->increment('wallet_balance', $amount);
+            $sender->refresh();
+            $receiver->refresh();
+
+            WalletTransaction::create([
+                'user_id' => $sender->id, 'type' => 'transfer', 'amount' => $amount,
+                'balance_after' => $sender->wallet_balance, 'to_user_id' => $receiver->id,
+                'reference' => $reference, 'note' => $note ?? "Sent to {$receiver->username}",
+            ]);
+            WalletTransaction::create([
+                'user_id' => $receiver->id, 'type' => $type, 'amount' => $amount,
+                'balance_after' => $receiver->wallet_balance, 'from_user_id' => $sender->id,
+                'reference' => $reference, 'note' => $note ?? "Received from {$sender->username}",
+            ]);
+        });
+    }
+
+    /**
+     * Refund money from a downline user back up to $by (admin action).
+     */
+    public function refund(User $by, User $target, float $amount, ?string $note = null): void
+    {
+        if ($amount <= 0) {
+            throw ValidationException::withMessages(['amount' => 'Amount must be greater than zero.']);
+        }
+
+        DB::transaction(function () use ($by, $target, $amount, $note) {
+            $t = User::whereKey($target->id)->lockForUpdate()->first();
+            $b = User::whereKey($by->id)->lockForUpdate()->first();
+
+            if ((float) $t->wallet_balance < $amount) {
+                throw ValidationException::withMessages(['amount' => 'Target does not have enough balance to refund.']);
+            }
+
+            $t->decrement('wallet_balance', $amount);
+            $b->increment('wallet_balance', $amount);
+            $t->refresh();
+            $b->refresh();
+
+            WalletTransaction::create([
+                'user_id' => $t->id, 'type' => 'refund', 'amount' => $amount,
+                'balance_after' => $t->wallet_balance, 'to_user_id' => $b->id,
+                'note' => $note ?? 'Refunded to upline',
+            ]);
+            WalletTransaction::create([
+                'user_id' => $b->id, 'type' => 'refund', 'amount' => $amount,
+                'balance_after' => $b->wallet_balance, 'from_user_id' => $t->id,
+                'note' => $note ?? "Refund from {$t->username}",
+            ]);
+        });
+    }
+
+    /** Deduct money for voucher generation (used by VoucherService in M3). */
+    public function deduct(User $user, float $amount, string $reference, ?string $note = null): void
+    {
+        $u = User::whereKey($user->id)->lockForUpdate()->first();
+        if ((float) $u->wallet_balance < $amount) {
+            throw ValidationException::withMessages(['wallet' => 'Not enough wallet balance.']);
+        }
+        $u->decrement('wallet_balance', $amount);
+        $u->refresh();
+        WalletTransaction::create([
+            'user_id' => $u->id, 'type' => 'deduct', 'amount' => $amount,
+            'balance_after' => $u->wallet_balance, 'reference' => $reference, 'note' => $note,
+        ]);
+    }
+}

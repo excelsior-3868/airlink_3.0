@@ -1,0 +1,509 @@
+
+--- Page 1 ---
+ 
+ 
+ 
+Airlink  Freeradius  
+Billing
+ 
+System
+ 
+V3.0
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+PREPARED  FOR  Nepal  Airlink   
+PREPARED  BY  Shekhar  Bahadur  singh      [Nepal  Airlink]
+ 
+ 
+JUN  07,  2026  
+ 
+ 
+
+--- Page 2 ---
+ 
+ 
+     
+      1.  Project  Overview  
+The  Nepal  Airlink  Billing  System  Version  3.0  is  a  major  upgrade  of  the  existing  Version  
+2.0
+ 
+platform
+ 
+designed
+ 
+to
+ 
+improve
+ 
+operational
+ 
+efﬁciency,
+ 
+scalability,
+ 
+and
+ 
+business
+ 
+expansion.
+ 
+The
+ 
+upgraded
+ 
+system
+ 
+introduces
+ 
+a
+ 
+multi-level
+ 
+distribution
+ 
+model
+ 
+that
+ 
+enables
+ 
+resellers
+ 
+to
+ 
+appoint
+ 
+and
+ 
+manage
+ 
+seller
+ 
+parties
+ 
+for
+ 
+the
+ 
+distribution
+ 
+of
+ 
+internet
+ 
+packages
+ 
+on
+ 
+a
+ 
+GB-based
+ 
+billing
+ 
+model.
+ 
+The  new  version  supports  modern  ISP  business  requirements,  allowing  Nepal  Airlink  
+to
+ 
+expand
+ 
+its
+ 
+market
+ 
+reach
+ 
+in
+ 
+remote
+ 
+and
+ 
+tourism-focused
+ 
+regions
+ 
+by
+ 
+empowering
+ 
+local
+ 
+businesses
+ 
+such
+ 
+as
+ 
+hotels,
+ 
+lodges,
+ 
+travel
+ 
+agencies,
+ 
+and
+ 
+retail
+ 
+shops
+ 
+to
+ 
+sell
+ 
+internet
+ 
+packages
+ 
+directly
+ 
+to
+ 
+end
+ 
+customers.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+--- Page 3 ---
+ 
+ 
+  
+A.  Current  Running  System  v2.0  Feature   
+Below  is  a  simple  network  architecture  diagram  showing  how  Mobile  Clients ,  MikroTik  
+Hotspot
+ 
+(NAS)
+,
+ 
+and
+ 
+FreeRADIUS
+ 
+Server
+ 
+interact
+ 
+in
+ 
+a
+ 
+hotspot
+ 
+authentication
+ 
+environment.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 4 ---
+ 
+ 
+ 
+ 
+Authentication  Flow   
+ 
+ 
+
+--- Page 5 ---
+ 
+ 
+ 
+ 
+ 
+
+--- Page 6 ---
+ 
+ 
+ 
+B.  UI  for  the  2.0  Admin  user  
+ 
+Voucher  Card  Management  Module   
+1.  Overview  
+The  Voucher  Card  Management  Module  is  designed  to  enable  the  Administrator  
+and
+ 
+Reseller
+ 
+to
+ 
+generate,
+ 
+distribute,
+ 
+monitor,
+ 
+and
+ 
+manage
+ 
+prepaid
+ 
+Internet
+ 
+voucher
+ 
+cards.
+ 
+The
+ 
+system
+ 
+supports
+ 
+both
+ 
+regular
+ 
+voucher
+ 
+generation
+ 
+for
+ 
+day-to-day
+ 
+sales
+ 
+and
+ 
+batch
+ 
+voucher
+ 
+generation
+ 
+for
+ 
+mass
+ 
+production.
+ 
+Role-based
+ 
+access
+ 
+control
+ 
+ensures
+ 
+that
+ 
+each
+ 
+user
+ 
+can
+ 
+only
+ 
+access
+ 
+voucher
+ 
+information
+ 
+according
+ 
+to
+ 
+their
+ 
+assigned
+ 
+permissions.
+ 
+ 
+ 
+
+--- Page 7 ---
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 8 ---
+ 
+ 
+ 
+ 
+ 
+ 
+
+--- Page 9 ---
+ 
+ 
+ 
+ 
+ 
+
+--- Page 10 ---
+ 
+ 
+ 
+  
+
+--- Page 11 ---
+ 
+ 
+ 
+ 
+ 
+Snap1:  Dashboard  v2.0  
+ 
+ 
+Snap2:  Customer  Report  and  UI  to  check  customer/card  details  
+ 
+ 
+ 
+
+--- Page 12 ---
+ 
+ 
+ 
+ 
+Snap3:   Voucher  card  Generation  and  Batch  voucher  card  generation  
+ 
+ 
+Snap4:  Voucher  card  or  any  other  Export  and  import   
+ 
+ 
+
+--- Page 13 ---
+ 
+ 
+ 
+2.  Multi-Level  Wallet  &  Voucher  Distribution  
+System
+ 
+3.0
+ 
+                 
+ 
+ 
+2.A  Permission  Matrix   
+ 
+
+--- Page 14 ---
+ 
+ 
+ 
+ 
+2.B  Dashboard   
+ 
+ 
+ 
+
+--- Page 15 ---
+ 
+ 
+ 
+ 
+ 
+3.  User  Roles   
+1.  Admin  
+Complete  system  access.  
+Permissions  
+●  Create  Internet  Plans  ●  Create  Resellers  ●  Create  Sellers  ●  Load  Wallet  ●  Allocate  GB  
+ 
+
+--- Page 16 ---
+ 
+ 
+ ●  Set  Selling  Price  ●  View  Reports  ●  Disable  Users  ●  Refund  Wallet  ●  View  Login  Logs  ●  Manage  NAS  ●  Manage  Routers  ●  Manage  FreeRADIUS  
+2.  Reseller  
+Cannot  access  system  conﬁguration.  
+Permissions  
+●  Create  Seller  ●  Load  Seller  Wallet  ●  Generate  Voucher  ●  View  Sales  ●  View  Wallet  ●  View  Seller  Report  ●  Transfer  Wallet  ●  Print  Voucher  
+Restrictions  
+Cannot  create  another  reseller.  
+3.  Seller  
+Lowest  level.  
+Permissions  
+●  Generate  Voucher  ●  Print  Voucher  ●  View  Wallet  ●  View  Sales  ●  View  Customers  
+Cannot  
+ 
+--- Page 17 ---
+ 
+ 
+ ●  Load  Wallet  ●  Create  Seller  ●  Create  Plan  ●  Modify  Voucher  
+ 
+4.  Wallet  Flow   
+ 
+ 
+
+--- Page 18 ---
+ 
+ 
+ 
+ 
+5.  GB  Allocation   
+ 
+ 
+Every  generated  voucher  deducts  GB.   
+ 
+
+--- Page 19 ---
+ 
+ 
+ 
+ 6.  Voucher  Creation  Flow  
+ 
+ 
+
+--- Page 20 ---
+ 
+ 
+ 
+ 
+7.  Money  Flow   
+  
+ 
+
+--- Page 21 ---
+ 
+ 
+ 
+8.  Voucher  Generation  Logic   
+ 
+ 
+ 
+
+--- Page 22 ---
+ 
+ 
+ 
+ 
+ 
+ 

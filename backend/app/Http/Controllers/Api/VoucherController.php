@@ -1,0 +1,342 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\InternetPlan;
+use App\Models\User;
+use App\Models\Voucher;
+use App\Services\RadiusService;
+use App\Services\VoucherCardService;
+use App\Services\VoucherService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class VoucherController extends Controller
+{
+    public function __construct(
+        private VoucherService $vouchers,
+        private RadiusService $radius,
+        private VoucherCardService $cards,
+    ) {}
+
+    public function generate(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'plan_id' => ['required', 'integer', 'exists:internet_plans,id'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:'.VoucherService::MAX_BATCH],
+            'validity_days' => ['nullable', 'integer', 'min:0'],
+            'note' => ['nullable', 'string', 'max:255'],
+            'custom_price' => ['nullable', 'numeric', 'min:0.00'],
+        ]);
+
+        $plan = InternetPlan::findOrFail($data['plan_id']);
+        $batch = $this->vouchers->generate(
+            $request->user(), $plan, (int) $data['quantity'],
+            $data['validity_days'] ?? null, $data['note'] ?? null,
+            isset($data['custom_price']) ? (float) $data['custom_price'] : null,
+        );
+
+        return $this->created([
+            'batch_code' => $batch->batch_code,
+            'quantity' => $batch->quantity,
+            'plan' => $plan->name,
+            'sample' => Voucher::where('batch_id', $batch->id)->limit(5)->pluck('code'),
+        ], "Generated {$batch->quantity} voucher(s).");
+    }
+
+    /** Filtered, scoped voucher list. */
+    public function index(Request $request): JsonResponse
+    {
+        $q = $this->scopedQuery($request->user())->with(['plan:id,name', 'reseller:id,username', 'seller:id,username']);
+
+        if ($s = $request->query('status')) {
+            $q->where('status', $s);
+        }
+        if ($p = $request->query('plan_id')) {
+            $q->where('plan_id', $p);
+        }
+        if ($b = $request->query('batch')) {
+            $q->whereHas('batch', fn ($x) => $x->where('batch_code', $b));
+        }
+        if ($c = $request->query('code')) {
+            $q->where('code', 'like', "%$c%");
+        }
+        if ($u = $request->query('username')) {
+            $q->where('username', 'like', "%$u%");
+        }
+        if ($cu = $request->query('customer_username')) {
+            $q->where('customer_username', 'like', "%$cu%");
+        }
+        if ($from = $request->query('from')) {
+            $q->whereDate('created_at', '>=', $from);
+        }
+        if ($to = $request->query('to')) {
+            $q->whereDate('created_at', '<=', $to);
+        }
+        // Report drill-down by downline (admin can filter any; reseller by its sellers).
+        if (($rid = $request->query('reseller_id')) && $request->user()->isAdmin()) {
+            $q->where('reseller_id', $rid);
+        }
+        if ($sid = $request->query('seller_id')) {
+            $q->where('seller_id', $sid);
+        }
+
+        return $this->ok($q->latest()->paginate($request->integer('per_page', 25)));
+    }
+
+    public function show(Request $request, Voucher $voucher): JsonResponse
+    {
+        if (! $this->canAccess($request->user(), $voucher)) {
+            return $this->fail('Not found.', 404);
+        }
+
+        return $this->ok($voucher->load('plan', 'owner:id,username', 'reseller:id,username', 'seller:id,username'));
+    }
+
+    /** Disable a voucher (admin) — removes its RADIUS credential so it rejects. */
+    public function disable(Voucher $voucher): JsonResponse
+    {
+        DB::transaction(function () use ($voucher) {
+            $voucher->update(['status' => 'disabled']);
+            DB::table('radcheck')->where('username', $voucher->username)->delete();
+        });
+
+        return $this->ok($voucher, 'Voucher disabled.');
+    }
+
+    /** Re-enable a disabled voucher (admin) — rebuilds RADIUS rows. */
+    public function enable(Voucher $voucher): JsonResponse
+    {
+        DB::transaction(function () use ($voucher) {
+            $rows = $this->radius->rows($voucher->username, $voucher->password, $voucher->plan);
+            DB::table('radcheck')->where('username', $voucher->username)->delete();
+            DB::table('radcheck')->insert($rows['check']);
+            $voucher->update(['status' => 'new']);
+        });
+
+        return $this->ok($voucher, 'Voucher re-enabled.');
+    }
+
+    /** Delete a voucher (admin) — also drops its RADIUS rows. */
+    public function destroy(Voucher $voucher): JsonResponse
+    {
+        DB::transaction(function () use ($voucher) {
+            DB::table('radcheck')->where('username', $voucher->username)->delete();
+            DB::table('radreply')->where('username', $voucher->username)->delete();
+            $voucher->delete();
+        });
+
+        return $this->ok(null, 'Voucher deleted.');
+    }
+
+    /** Stream a CSV of the scoped/filtered voucher list (codes + details). */
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $q = $this->scopedQuery($request->user())->with('plan:id,name');
+        if ($b = $request->query('batch')) {
+            $q->whereHas('batch', fn ($x) => $x->where('batch_code', $b));
+        }
+        if ($s = $request->query('status')) {
+            $q->where('status', $s);
+        }
+
+        $filename = 'vouchers-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($q) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Status', 'Expires At']);
+            $q->chunk(2000, function ($chunk) use ($out) {
+                foreach ($chunk as $v) {
+                    fputcsv($out, [$v->code, $v->username, $v->password, $v->plan?->name, $v->data_gb, $v->validity_days, $v->price, $v->status, $v->expires_at]);
+                }
+            });
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /** Excel (.xlsx) export of the scoped/filtered voucher list. */
+    public function exportXlsx(Request $request): StreamedResponse
+    {
+        $q = $this->scopedQuery($request->user())->with('plan:id,name');
+        if ($b = $request->query('batch')) {
+            $q->whereHas('batch', fn ($x) => $x->where('batch_code', $b));
+        }
+        if ($s = $request->query('status')) {
+            $q->where('status', $s);
+        }
+        if ($p = $request->query('plan_id')) {
+            $q->where('plan_id', $p);
+        }
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Vouchers');
+        $sheet->fromArray(['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Status', 'Expires At'], null, 'A1');
+        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+
+        $row = 2;
+        $q->chunk(2000, function ($chunk) use ($sheet, &$row) {
+            foreach ($chunk as $v) {
+                $sheet->fromArray([
+                    $v->code, $v->username, $v->password, $v->plan?->name,
+                    (float) $v->data_gb, $v->validity_days, (float) $v->price,
+                    $v->status, (string) $v->expires_at,
+                ], null, 'A'.$row++);
+            }
+        });
+
+        $filename = 'vouchers-'.now()->format('Ymd-His').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    /** Single voucher card as a PNG (QR + code + plan + T&C). */
+    public function card(Request $request, Voucher $voucher)
+    {
+        if (! $this->canAccess($request->user(), $voucher)) {
+            return $this->fail('Not found.', 404);
+        }
+        $voucher->load('plan');
+
+        return response($this->cards->png($voucher), 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="voucher-'.$voucher->code.'.png"',
+        ]);
+    }
+
+    /** Printable HTML sheet of all cards in a batch (browser Ctrl+P). */
+    public function printSheet(Request $request)
+    {
+        $batch = $request->query('batch');
+        if (! $batch) {
+            return $this->fail('batch is required.', 422);
+        }
+        $q = $this->scopedQuery($request->user())->whereHas('batch', fn ($x) => $x->where('batch_code', $batch))->with('plan');
+        $vouchers = $q->limit(2000)->get();
+
+        $cards = $vouchers->map(function ($v) {
+            $img = base64_encode($this->cards->png($v));
+
+            return '<img src="data:image/png;base64,'.$img.'" style="width:270px;height:auto;margin:6px;border:1px solid #eee;border-radius:8px" />';
+        })->implode('');
+
+        $html = '<!doctype html><html><head><meta charset="utf-8"><title>Vouchers '.e($batch).'</title>'
+            .'<style>body{font-family:sans-serif;margin:12px}h1{font-size:16px}@media print{.noprint{display:none}}'
+            .'.grid{display:flex;flex-wrap:wrap}</style></head><body>'
+            .'<h1>Batch '.e($batch).' — '.$vouchers->count().' vouchers</h1>'
+            .'<button class="noprint" onclick="window.print()">Print</button>'
+            .'<div class="grid">'.$cards.'</div></body></html>';
+
+        return response($html, 200, ['Content-Type' => 'text/html']);
+    }
+
+    /** Sell a voucher (reseller/seller). Sets status to sold, optionally registers customer_username. */
+    public function sell(Request $request, Voucher $voucher): JsonResponse
+    {
+        if (! $this->canAccess($request->user(), $voucher)) {
+            return $this->fail('Not found.', 404);
+        }
+
+        if ($voucher->status !== 'new') {
+            return $this->fail('Only new vouchers can be marked as sold.', 422);
+        }
+
+        $data = $request->validate([
+            'customer_username' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $voucher->update([
+            'status' => 'sold',
+            'sold_at' => now(),
+            'customer_username' => $data['customer_username'] ?? $voucher->customer_username,
+        ]);
+
+        return $this->ok($voucher, 'Voucher marked as sold.');
+    }
+
+    /** Redeem a voucher to load GB balance (reseller/seller). Consumes the voucher. */
+    public function redeem(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'code' => ['required', 'string', 'exists:vouchers,code'],
+        ]);
+
+        $voucher = Voucher::where('code', $data['code'])->firstOrFail();
+
+        if (! in_array($voucher->status, ['new', 'sold'], true)) {
+            return $this->fail('Voucher is already used, active, expired or disabled.', 422);
+        }
+
+        if (! $voucher->data_gb || (float) $voucher->data_gb <= 0) {
+            return $this->fail('This voucher card does not contain a GB quota.', 422);
+        }
+
+        $user = $request->user();
+
+        if ($user->isAdmin()) {
+            return $this->fail('Admin accounts cannot redeem vouchers.', 422);
+        }
+
+        DB::transaction(function () use ($voucher, $user) {
+            $u = User::whereKey($user->id)->lockForUpdate()->first();
+
+            $voucher->update([
+                'status' => 'active',
+                'activated_at' => now(),
+                'customer_username' => $u->username,
+            ]);
+
+            $u->increment('gb_balance', $voucher->data_gb);
+            $u->refresh();
+
+            DB::table('radcheck')->where('username', $voucher->username)->delete();
+            DB::table('radreply')->where('username', $voucher->username)->delete();
+
+            \App\Models\GbTransaction::create([
+                'user_id' => $u->id,
+                'type' => 'allocate',
+                'gb_amount' => $voucher->data_gb,
+                'balance_after' => $u->gb_balance,
+                'from_user_id' => $voucher->owner_id,
+                'to_user_id' => $u->id,
+                'reference' => 'voucher:' . $voucher->code,
+                'note' => 'Redeemed voucher card ' . $voucher->code,
+            ]);
+        });
+
+        return $this->ok([
+            'gb_balance' => $user->fresh()->gb_balance,
+            'redeemed_gb' => (float) $voucher->data_gb,
+        ], "Voucher card {$voucher->code} successfully redeemed. Added {$voucher->data_gb} GB.");
+    }
+
+    // --- Scoping helpers ---
+
+    private function scopedQuery(User $actor)
+    {
+        $q = Voucher::query();
+        if ($actor->isReseller()) {
+            $q->where('reseller_id', $actor->id);
+        } elseif ($actor->isSeller()) {
+            $q->where('seller_id', $actor->id);
+        }
+
+        return $q; // admin: unrestricted
+    }
+
+    private function canAccess(User $actor, Voucher $v): bool
+    {
+        return $actor->isAdmin()
+            || ($actor->isReseller() && $v->reseller_id === $actor->id)
+            || ($actor->isSeller() && $v->seller_id === $actor->id);
+    }
+}

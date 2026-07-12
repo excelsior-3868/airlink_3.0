@@ -1,0 +1,44 @@
+# Airlink v3.0 — minimal FreeRADIUS virtual server for hotspot voucher auth.
+# Voucher code is the username; radcheck holds Cleartext-Password (PAP).
+server default {
+    listen {
+        type   = auth
+        ipaddr = *
+        port   = 1812
+    }
+    listen {
+        type   = acct
+        ipaddr = *
+        port   = 1813
+    }
+
+    authorize {
+        preprocess
+        sql          # pull radcheck/radreply for this username
+        pap          # prepare PAP using Cleartext-Password
+    }
+
+    authenticate {
+        Auth-Type PAP {
+            pap
+        }
+    }
+
+    preacct {
+        preprocess
+    }
+
+    accounting {
+        sql          # write radacct
+    }
+
+    session {
+    }
+
+    post-auth {
+        sql          # write radpostauth
+        Post-Auth-Type REJECT {
+            sql
+        }
+    }
+}

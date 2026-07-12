@@ -1,0 +1,103 @@
+<?php
+
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\GbController;
+use App\Http\Controllers\Api\NasController;
+use App\Http\Controllers\Api\PlanController;
+use App\Http\Controllers\Api\BandwidthController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\VoucherController;
+use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\BatchController;
+use App\Http\Controllers\Api\LoginLogController;
+use App\Http\Controllers\Api\RadiusController;
+use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\BillingController;
+use Illuminate\Support\Facades\Route;
+
+// --- Public ---
+Route::post('/login', [AuthController::class, 'login']);
+
+// --- Authenticated ---
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('permission:dashboard');
+
+    // Plans — read for all, writes gated by permission.
+    Route::get('/plans', [PlanController::class, 'index']);
+    Route::get('/plans/{plan}', [PlanController::class, 'show']);
+    Route::post('/plans', [PlanController::class, 'store'])->middleware('permission:create_plan');
+    Route::put('/plans/{plan}', [PlanController::class, 'update'])->middleware('permission:create_plan');
+    Route::delete('/plans/{plan}', [PlanController::class, 'destroy'])->middleware('permission:create_plan');
+
+    // Bandwidths — read for all, writes gated by permission.
+    Route::get('/bandwidths', [BandwidthController::class, 'index']);
+    Route::get('/bandwidths/{bandwidth}', [BandwidthController::class, 'show']);
+    Route::post('/bandwidths', [BandwidthController::class, 'store'])->middleware('permission:create_plan');
+    Route::put('/bandwidths/{bandwidth}', [BandwidthController::class, 'update'])->middleware('permission:create_plan');
+    Route::delete('/bandwidths/{bandwidth}', [BandwidthController::class, 'destroy'])->middleware('permission:create_plan');
+
+    // Batches
+    Route::get('/batches', [BatchController::class, 'index']);
+
+    // Users / hierarchy.
+    Route::get('/users', [UserController::class, 'index']);
+    Route::get('/users/{user}', [UserController::class, 'show']);
+    Route::patch('/users/{user}/status', [UserController::class, 'setStatus'])->middleware('role:admin,reseller');
+    Route::post('/resellers', [UserController::class, 'storeReseller'])->middleware('permission:create_reseller');
+    Route::post('/sellers', [UserController::class, 'storeSeller'])->middleware('permission:create_seller');
+
+    // Wallet — load/transfer admin+reseller; refund admin-only.
+    Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
+    Route::post('/wallet/load', [WalletController::class, 'load'])->middleware('permission:wallet_load');
+    Route::post('/wallet/refund', [WalletController::class, 'refund'])->middleware('role:admin');
+
+    // GB allocation — admin+reseller.
+    Route::get('/gb/transactions', [GbController::class, 'transactions']);
+    Route::post('/gb/allocate', [GbController::class, 'allocate'])->middleware('permission:allocate_gb');
+
+    // Billing & Invoices
+    Route::get('/billing/invoices', [BillingController::class, 'invoices']);
+    Route::get('/billing/payments', [BillingController::class, 'payments']);
+    Route::post('/billing/payments/collect', [BillingController::class, 'collect'])->middleware('permission:wallet_load');
+
+    // Vouchers — generate, list/show scoped, export; lifecycle.
+    Route::get('/vouchers', [VoucherController::class, 'index']);
+    Route::get('/vouchers/export', [VoucherController::class, 'exportCsv']);
+    Route::get('/vouchers/export-xlsx', [VoucherController::class, 'exportXlsx']);
+    Route::get('/vouchers/print', [VoucherController::class, 'printSheet']);
+    Route::post('/vouchers/generate', [VoucherController::class, 'generate'])->middleware('permission:generate_voucher');
+    Route::post('/vouchers/redeem', [VoucherController::class, 'redeem']);
+    Route::post('/vouchers/{voucher}/sell', [VoucherController::class, 'sell']);
+    Route::get('/vouchers/{voucher}', [VoucherController::class, 'show']);
+    Route::get('/vouchers/{voucher}/card', [VoucherController::class, 'card']);
+    Route::delete('/vouchers/{voucher}', [VoucherController::class, 'destroy'])->middleware('permission:delete_voucher');
+    Route::patch('/vouchers/{voucher}/disable', [VoucherController::class, 'disable'])->middleware('role:admin');
+    Route::patch('/vouchers/{voucher}/enable', [VoucherController::class, 'enable'])->middleware('role:admin');
+
+    // Reports — used-voucher package summary (scoped); drill-down via /vouchers.
+    Route::get('/reports/package-summary', [ReportController::class, 'packageSummary'])->middleware('permission:reports');
+
+    // System Permissions Configuration Matrix
+    Route::get('/permissions', [PermissionController::class, 'index']);
+    Route::post('/permissions', [PermissionController::class, 'update'])->middleware('role:admin');
+
+    // NAS / router management (admin only). List is readable by all authed users.
+    Route::get('/nas', [NasController::class, 'index']);
+    Route::middleware('role:admin')->group(function () {
+        Route::patch('/users/{user}/gb-rate', [UserController::class, 'updateGbRate']);
+        Route::post('/nas', [NasController::class, 'store']);
+        Route::put('/nas/{nas}', [NasController::class, 'update']);
+        Route::delete('/nas/{nas}', [NasController::class, 'destroy']);
+
+        Route::get('/login-logs', [LoginLogController::class, 'index']);
+        Route::get('/radius/status', [RadiusController::class, 'status']);
+        Route::get('/radius/auth-logs', [RadiusController::class, 'authLogs']);
+        Route::get('/radius/clients-config', [RadiusController::class, 'clientsConfig']);
+        Route::post('/radius/test-auth', [RadiusController::class, 'testAuth']);
+    });
+});

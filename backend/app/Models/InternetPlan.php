@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class InternetPlan extends Model
+{
+    protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return [
+            'data_gb' => 'decimal:3',
+            'base_price' => 'decimal:2',
+            'selling_price' => 'decimal:2',
+        ];
+    }
+
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class, 'plan_id');
+    }
+
+    public function bandwidthRef(): BelongsTo
+    {
+        return $this->belongsTo(Bandwidth::class, 'bandwidth_id');
+    }
+}
