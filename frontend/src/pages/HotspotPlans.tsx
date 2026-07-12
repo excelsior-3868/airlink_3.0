@@ -18,6 +18,7 @@ export default function HotspotPlans() {
   const [editId, setEditId] = useState<number | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [activeTab, setActiveTab] = useState<'my' | 'admin' | 'seller'>('my')
 
   const load = async () => {
     try {
@@ -90,6 +91,14 @@ export default function HotspotPlans() {
     }
   }
 
+  const filteredPlans = plans.filter((p) => {
+    if (user?.role !== 'reseller') return true
+    if (activeTab === 'my') return p.created_by === user.id
+    if (activeTab === 'admin') return p.created_by === null || p.creator?.role === 'admin'
+    if (activeTab === 'seller') return p.created_by !== null && p.created_by !== user.id && p.creator?.role === 'seller'
+    return true
+  })
+
   return (
     <div>
       <PageTitle
@@ -97,17 +106,50 @@ export default function HotspotPlans() {
         subtitle="Voucher-based hotspot packages"
         icon={<Package size={22} className="text-indigo-500" />}
         action={
-          isAdmin && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              className="btn-primary flex items-center gap-2"
-              onClick={openNew}
-            >
-              <Plus size={16} /> New Plan
-            </motion.button>
-          )
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            className="btn-primary flex items-center gap-2"
+            onClick={openNew}
+          >
+            <Plus size={16} /> New Plan
+          </motion.button>
         }
       />
+
+      {user?.role === 'reseller' && (
+        <div className="flex border-b border-slate-200/80 mb-6 gap-2">
+          <button
+            onClick={() => setActiveTab('my')}
+            className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all ${
+              activeTab === 'my'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            My Plans
+          </button>
+          <button
+            onClick={() => setActiveTab('admin')}
+            className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all ${
+              activeTab === 'admin'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Plan Created from Admin
+          </button>
+          <button
+            onClick={() => setActiveTab('seller')}
+            className={`pb-3 px-4 text-sm font-bold border-b-2 transition-all ${
+              activeTab === 'seller'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            Seller Plan
+          </button>
+        </div>
+      )}
 
       <GlassCard className="!p-0 overflow-hidden">
         <div className="overflow-x-auto">
@@ -120,12 +162,18 @@ export default function HotspotPlans() {
                 <th>Data</th>
                 <th>Validity</th>
                 <th>Price</th>
+                {user?.role === 'reseller' && activeTab === 'seller' && (
+                  <>
+                    <th>Created By</th>
+                    <th>Seller GB Balance</th>
+                  </>
+                )}
                 <th>Status</th>
-                {isAdmin && <th></th>}
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {plans.map((p, idx) => (
+              {filteredPlans.map((p, idx) => (
                 <motion.tr
                   key={p.id}
                   initial={{ opacity: 0, x: -10 }}
@@ -139,24 +187,36 @@ export default function HotspotPlans() {
                   <td>{p.data_gb ? gb(p.data_gb) : '—'}</td>
                   <td>{p.validity_days}d</td>
                   <td>{rs(p.selling_price)}</td>
+                  {user?.role === 'reseller' && activeTab === 'seller' && (
+                    <>
+                      <td className="font-medium text-slate-600">
+                        {p.creator ? `${p.creator.name} (${p.creator.username})` : '—'}
+                      </td>
+                      <td className="font-medium text-cyan-600">
+                        {p.creator ? gb(p.creator.gb_balance) : '—'}
+                      </td>
+                    </>
+                  )}
                   <td>
                     <Pill tone={p.status === 'active' ? 'success' : 'secondary'}>{p.status}</Pill>
                   </td>
-                  {isAdmin && (
-                    <td className="text-right whitespace-nowrap">
-                      <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => openEdit(p)}>
-                        Edit
-                      </button>
-                      <button className="text-xs font-bold text-rose-500 hover:underline" onClick={() => del(p)}>
-                        Delete
-                      </button>
-                    </td>
-                  )}
+                  <td className="text-right whitespace-nowrap">
+                    {(isAdmin || p.created_by === user?.id) && (
+                      <>
+                        <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => openEdit(p)}>
+                          Edit
+                        </button>
+                        <button className="text-xs font-bold text-rose-500 hover:underline" onClick={() => del(p)}>
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
                 </motion.tr>
               ))}
             </tbody>
           </table>
-          {plans.length === 0 && <EmptyState>No Hotspot plans yet.</EmptyState>}
+          {filteredPlans.length === 0 && <EmptyState>No Hotspot plans yet.</EmptyState>}
         </div>
       </GlassCard>
 
@@ -249,27 +309,6 @@ export default function HotspotPlans() {
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Base Price</label>
-              <input
-                className="input"
-                type="number"
-                placeholder="Base price"
-                value={form.base_price}
-                onChange={(e) => setForm({ ...form, base_price: +e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase block mb-1">Selling Price</label>
-              <input
-                className="input"
-                type="number"
-                placeholder="Selling price"
-                value={form.selling_price}
-                onChange={(e) => setForm({ ...form, selling_price: +e.target.value })}
-              />
-            </div>
           </div>
 
           {err && <div className="pill danger w-full justify-center py-2">{err}</div>}

@@ -19,13 +19,24 @@ class GbController extends Controller
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'gb_amount' => ['required', 'numeric', 'min:0.001'],
+            'paid_amount' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
         $to = User::findOrFail($data['user_id']);
-        $this->gb->allocate($request->user(), $to, (float) $data['gb_amount'], $data['note'] ?? null);
+        $this->gb->allocate(
+            $request->user(),
+            $to,
+            (float) $data['gb_amount'],
+            $data['note'] ?? null,
+            (float) ($data['paid_amount'] ?? 0),
+        );
 
-        return $this->ok(['balance' => $to->fresh()->gb_balance], 'GB allocated.');
+        $fresh = $to->fresh();
+        return $this->ok([
+            'balance' => $fresh->gb_balance,
+            'wallet_due' => $fresh->wallet_due,
+        ], 'GB allocated.');
     }
 
     public function transactions(Request $request): JsonResponse
@@ -33,10 +44,25 @@ class GbController extends Controller
         $actor = $request->user();
         $visibleIds = User::query()->visibleTo($actor)->pluck('id');
 
-        $tx = GbTransaction::whereIn('user_id', $visibleIds)
+        $userId = $request->input('user_id');
+        $query = GbTransaction::query()
             ->with(['user:id,username', 'fromUser:id,username', 'toUser:id,username'])
-            ->latest()
-            ->paginate($request->integer('per_page', 20));
+            ->latest();
+
+        if ($userId) {
+            if (! in_array($userId, $visibleIds->all())) {
+                return $this->fail('Unauthorized access to user transaction history.', 403);
+            }
+            $query->where(function($q) use ($userId) {
+                $q->where('user_id', $userId)
+                  ->orWhere('from_user_id', $userId)
+                  ->orWhere('to_user_id', $userId);
+            });
+        } else {
+            $query->whereIn('user_id', $visibleIds);
+        }
+
+        $tx = $query->paginate($request->integer('per_page', 20));
 
         return $this->ok($tx);
     }

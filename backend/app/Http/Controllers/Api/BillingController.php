@@ -19,13 +19,24 @@ class BillingController extends Controller
     {
         $user = $request->user();
         $query = Invoice::query()->with(['sender:id,username,name', 'receiver:id,username,name']);
+        $userId = $request->input('user_id');
 
-        if ($user->role === 'reseller') {
-            $query->where(function ($q) use ($user) {
-                $q->where('sender_id', $user->id)->orWhere('receiver_id', $user->id);
+        if ($userId) {
+            $visibleIds = User::query()->visibleTo($user)->pluck('id');
+            if (! in_array($userId, $visibleIds->all())) {
+                return $this->fail('Unauthorized access to user invoices.', 403);
+            }
+            $query->where(function ($q) use ($userId) {
+                $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
             });
-        } elseif ($user->role === 'seller') {
-            $query->where('receiver_id', $user->id);
+        } else {
+            if ($user->role === 'reseller') {
+                $query->where(function ($q) use ($user) {
+                    $q->where('sender_id', $user->id)->orWhere('receiver_id', $user->id);
+                });
+            } elseif ($user->role === 'seller') {
+                $query->where('receiver_id', $user->id);
+            }
         }
 
         $invoices = $query->latest()->paginate($request->integer('per_page', 20));
@@ -37,13 +48,24 @@ class BillingController extends Controller
     {
         $user = $request->user();
         $query = Payment::query()->with(['sender:id,username,name', 'receiver:id,username,name']);
+        $userId = $request->input('user_id');
 
-        if ($user->role === 'reseller') {
-            $query->where(function ($q) use ($user) {
-                $q->where('sender_id', $user->id)->orWhere('receiver_id', $user->id);
+        if ($userId) {
+            $visibleIds = User::query()->visibleTo($user)->pluck('id');
+            if (! in_array($userId, $visibleIds->all())) {
+                return $this->fail('Unauthorized access to user payments.', 403);
+            }
+            $query->where(function ($q) use ($userId) {
+                $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
             });
-        } elseif ($user->role === 'seller') {
-            $query->where('sender_id', $user->id);
+        } else {
+            if ($user->role === 'reseller') {
+                $query->where(function ($q) use ($user) {
+                    $q->where('sender_id', $user->id)->orWhere('receiver_id', $user->id);
+                });
+            } elseif ($user->role === 'seller') {
+                $query->where('sender_id', $user->id);
+            }
         }
 
         $payments = $query->latest()->paginate($request->integer('per_page', 20));

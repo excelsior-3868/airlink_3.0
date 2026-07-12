@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Package, Users2, Store, Wallet as WalletIcon,
   Database, Ticket, BarChart3, LogOut, Wifi, Router, ShieldCheck, Shield,
-  ChevronDown, ChevronRight, Key, Gauge
+  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight
 } from 'lucide-react'
 import { Role, useAuth } from '../lib/auth'
 import ChangePasswordModal from '../components/ChangePasswordModal'
@@ -35,6 +35,7 @@ const NAV: NavItem[] = [
   { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500' },
   { to: '/wallet', label: 'Wallet', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500' },
   { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500' },
+  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500' },
   { to: '/vouchers', label: 'Vouchers', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500' },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500' },
   { to: '/nas', label: 'NAS / Routers', icon: Router, roles: ['admin'], color: 'text-violet-500' },
@@ -46,7 +47,7 @@ export default function AppShell() {
   const { user, logout } = useAuth()
   const nav = useNavigate()
   const location = useLocation()
-  const [plansExpanded, setPlansExpanded] = useState(true)
+  const [plansExpanded, setPlansExpanded] = useState(() => location.pathname.startsWith('/plans'))
   const [profileOpen, setProfileOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)

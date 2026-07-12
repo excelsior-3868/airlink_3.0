@@ -32,6 +32,7 @@ class VoucherController extends Controller
             'validity_days' => ['nullable', 'integer', 'min:0'],
             'note' => ['nullable', 'string', 'max:255'],
             'custom_price' => ['nullable', 'numeric', 'min:0.00'],
+            'custom_base_price' => ['nullable', 'numeric', 'min:0.00'],
         ]);
 
         $plan = InternetPlan::findOrFail($data['plan_id']);
@@ -39,6 +40,7 @@ class VoucherController extends Controller
             $request->user(), $plan, (int) $data['quantity'],
             $data['validity_days'] ?? null, $data['note'] ?? null,
             isset($data['custom_price']) ? (float) $data['custom_price'] : null,
+            isset($data['custom_base_price']) ? (float) $data['custom_base_price'] : null,
         );
 
         return $this->created([
@@ -98,24 +100,35 @@ class VoucherController extends Controller
         return $this->ok($voucher->load('plan', 'owner:id,username', 'reseller:id,username', 'seller:id,username'));
     }
 
-    /** Disable a voucher (admin) — removes its RADIUS credential so it rejects. */
-    public function disable(Voucher $voucher): JsonResponse
+    /** Disable a voucher — removes its RADIUS credential so it rejects. */
+    public function disable(Request $request, Voucher $voucher): JsonResponse
     {
+        if (! $this->canAccess($request->user(), $voucher)) {
+            return $this->fail('You do not have permission to disable this voucher.', 403);
+        }
+
         DB::transaction(function () use ($voucher) {
             $voucher->update(['status' => 'disabled']);
             DB::table('radcheck')->where('username', $voucher->username)->delete();
+            DB::table('radreply')->where('username', $voucher->username)->delete();
         });
 
         return $this->ok($voucher, 'Voucher disabled.');
     }
 
-    /** Re-enable a disabled voucher (admin) — rebuilds RADIUS rows. */
-    public function enable(Voucher $voucher): JsonResponse
+    /** Re-enable a disabled voucher — rebuilds RADIUS rows. */
+    public function enable(Request $request, Voucher $voucher): JsonResponse
     {
+        if (! $this->canAccess($request->user(), $voucher)) {
+            return $this->fail('You do not have permission to enable this voucher.', 403);
+        }
+
         DB::transaction(function () use ($voucher) {
             $rows = $this->radius->rows($voucher->username, $voucher->password, $voucher->plan);
             DB::table('radcheck')->where('username', $voucher->username)->delete();
+            DB::table('radreply')->where('username', $voucher->username)->delete();
             DB::table('radcheck')->insert($rows['check']);
+            DB::table('radreply')->insert($rows['reply']);
             $voucher->update(['status' => 'new']);
         });
 

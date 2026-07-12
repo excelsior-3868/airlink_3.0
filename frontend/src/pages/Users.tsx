@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Wallet, Database, UserPlus, Save, Users2, Store } from 'lucide-react'
+import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { rs, gb } from '../lib/format'
-import { GlassCard, PageTitle, Modal, Pill, Pagination, EmptyState } from '../components/ui'
+import { rs, gb, date, datet } from '../lib/format'
+import { GlassCard, PageTitle, Modal, Pill, Pagination, EmptyState, Spinner } from '../components/ui'
 
 export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const { user, refresh } = useAuth()
@@ -15,11 +15,104 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
   const [fundUser, setFundUser] = useState<any>(null)
-  const [fund, setFund] = useState({ amount: '', gb_amount: '' })
+  const [fund, setFund] = useState({ amount: '', gb_amount: '', gb_paid: '' })
   const [rateUser, setRateUser] = useState<any>(null)
   const [customRate, setCustomRate] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const [expandedUserId, setExpandedUserId] = useState<number | null>(null)
+  const [historyData, setHistoryData] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  const toggleExpand = (u: any) => {
+    if (expandedUserId === u.id) {
+      setExpandedUserId(null)
+      setHistoryData([])
+      return
+    }
+
+    setExpandedUserId(u.id)
+    setLoadingHistory(true)
+    setHistoryData([])
+    Promise.all([
+      api.get('/wallet/transactions', { params: { user_id: u.id, per_page: 100 } }),
+      api.get('/billing/invoices', { params: { user_id: u.id, per_page: 100 } }),
+      api.get('/billing/payments', { params: { user_id: u.id, per_page: 100 } })
+    ]).then(([wRes, iRes, pRes]) => {
+      const wList = (wRes.data.data?.data || wRes.data.data || []).map((t: any) => ({
+        id: t.id,
+        kind: 'wallet',
+        title: t.type === 'load' ? 'Wallet Loaded' : (t.type === 'refund' ? 'Wallet Refunded' : 'Wallet Transaction'),
+        reference: `TX-${t.id}`,
+        subtext: `By: ${t.from_user?.username || 'System'} → ${t.to_user?.username || t.user?.username || 'User'}`,
+        note: t.note,
+        amountLabel: rs(t.amount),
+        amountColor: t.type === 'refund' ? 'text-rose-600' : 'text-emerald-600',
+        statusBadge: t.type.toUpperCase(),
+        statusTone: t.type === 'load' ? 'success' : 'secondary',
+        created_at: t.created_at,
+        dateObj: new Date(t.created_at),
+        sender_id: t.from_user_id,
+        receiver_id: t.to_user_id || t.user_id,
+      }))
+
+      const iList = (iRes.data.data?.data || iRes.data.data || []).map((t: any) => ({
+        id: t.id,
+        kind: 'invoice',
+        title: `GB Allocation (${gb(t.gb_amount)})`,
+        reference: t.invoice_number,
+        subtext: `Rate: Rs ${t.rate}/GB · Total: Rs ${t.total_amount} · By: ${t.sender?.username || 'System'}`,
+        note: t.status === 'due' && t.paid_amount > 0 ? `Paid: Rs ${t.paid_amount} · Due: Rs ${t.total_amount - t.paid_amount}` : null,
+        amountLabel: rs(t.total_amount),
+        amountColor: 'text-purple-600',
+        statusBadge: t.status.toUpperCase(),
+        statusTone: t.status === 'paid' ? 'success' : 'danger',
+        created_at: t.created_at,
+        dateObj: new Date(t.created_at),
+        sender_id: t.sender_id,
+        receiver_id: t.receiver_id,
+      }))
+
+      const pList = (pRes.data.data?.data || pRes.data.data || []).map((t: any) => ({
+        id: t.id,
+        kind: 'payment',
+        title: 'Payment Received',
+        reference: `PAY-${t.id}`,
+        subtext: `Collected by: ${t.receiver?.username || 'System'} · From: ${t.sender?.username || 'User'}`,
+        note: t.note,
+        amountLabel: rs(t.amount),
+        amountColor: 'text-emerald-600',
+        statusBadge: 'PAID',
+        statusTone: 'success',
+        created_at: t.payment_date || t.created_at,
+        dateObj: new Date(t.payment_date || t.created_at),
+        sender_id: t.sender_id,
+        receiver_id: t.receiver_id,
+      }))
+
+      let filteredW = wList;
+      let filteredI = iList;
+      let filteredP = pList;
+
+      if (role === 'reseller') {
+        // Reseller page: show only transactions between Admin and Reseller
+        filteredI = iList.filter((t: any) => t.receiver_id === u.id);
+        filteredP = pList.filter((t: any) => t.receiver_id === user?.id || t.receiver_id === 1); // target receiver is Admin (user.id or 1)
+      } else if (role === 'seller') {
+        // Seller page: show only transactions between Reseller/Admin and Seller
+        filteredI = iList.filter((t: any) => t.receiver_id === u.id);
+        filteredP = pList.filter((t: any) => t.sender_id === u.id);
+      }
+
+      const merged = [...filteredW, ...filteredI, ...filteredP].sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
+      setHistoryData(merged)
+    }).catch(() => {
+      setHistoryData([])
+    }).finally(() => {
+      setLoadingHistory(false)
+    })
+  }
 
   const label = role === 'reseller' ? 'Reseller' : 'Seller'
 
@@ -85,8 +178,12 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
     setErr('')
     try {
       if (fund.amount) await api.post('/wallet/load', { user_id: fundUser.id, amount: +fund.amount })
-      if (fund.gb_amount) await api.post('/gb/allocate', { user_id: fundUser.id, gb_amount: +fund.gb_amount })
-      setFundUser(null); setFund({ amount: '', gb_amount: '' }); load(); refresh()
+      if (fund.gb_amount) await api.post('/gb/allocate', {
+        user_id: fundUser.id,
+        gb_amount: +fund.gb_amount,
+        paid_amount: fund.gb_paid ? +fund.gb_paid : 0,
+      })
+      setFundUser(null); setFund({ amount: '', gb_amount: '', gb_paid: '' }); load(); refresh()
     } catch (e) { setErr(apiError(e)) } finally { setBusy(false) }
   }
 
@@ -113,25 +210,140 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               </tr>
             </thead>
             <tbody>
-              {(data?.data || []).map((u: any, idx: number) => (
-                <motion.tr key={u.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }} className="hover:bg-secondary/30">
-                  <td className="font-semibold">{u.name}</td>
-                  <td className="font-mono text-xs">{u.username}</td>
-                  {role !== 'reseller' && <td>{rs(u.wallet_balance)}</td>}
-                  <td className="text-rose-600 font-semibold">{rs(u.wallet_due)}</td>
-                  <td>{gb(u.gb_balance)}</td>
-                  <td>{rs(u.gb_rate)}/GB</td>
-                  {role === 'reseller' && <td>{u.children_count ?? 0}</td>}
-                  <td><Pill tone={u.status === 'active' ? 'success' : 'danger'}>{u.status}</Pill></td>
-                  <td className="text-right pr-6 whitespace-nowrap">
-                    {user?.role === 'admin' && (
-                      <button className="text-xs font-bold text-teal-600 hover:underline mr-3" onClick={() => openEditRate(u)}>Rate</button>
+              {(data?.data || []).map((u: any, idx: number) => {
+                const isExpanded = expandedUserId === u.id;
+                return (
+                  <Fragment key={u.id}>
+                    <motion.tr 
+                      initial={{ opacity: 0, x: -10 }} 
+                      animate={{ opacity: 1, x: 0 }} 
+                      transition={{ delay: idx * 0.03 }} 
+                      className="hover:bg-secondary/30 cursor-pointer select-none"
+                      onClick={() => toggleExpand(u)}
+                    >
+                      <td className="font-semibold text-slate-800">{u.name}</td>
+                      <td className="font-mono text-xs">{u.username}</td>
+                      {role !== 'reseller' && <td>{rs(u.wallet_balance)}</td>}
+                      <td className="text-rose-600 font-semibold">{rs(u.wallet_due)}</td>
+                      <td>{gb(u.gb_balance)}</td>
+                      <td>{rs(u.gb_rate)}/GB</td>
+                      {role === 'reseller' && <td>{u.children_count ?? 0}</td>}
+                      <td><Pill tone={u.status === 'active' ? 'success' : 'danger'}>{u.status === 'active' ? 'Active' : 'Disabled'}</Pill></td>
+                      <td className="text-right pr-6 whitespace-nowrap">
+                        {user?.role === 'admin' && (
+                          <button className="text-xs font-bold text-teal-600 hover:underline mr-3" onClick={(e) => { e.stopPropagation(); openEditRate(u); }}>Rate</button>
+                        )}
+                        <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={(e) => { e.stopPropagation(); setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>Fund</button>
+                        <button className="text-xs font-bold text-slate-500 hover:underline mr-3" onClick={(e) => { e.stopPropagation(); toggle(u); }}>{u.status === 'active' ? 'Disable' : 'Enable'}</button>
+                        <button className="text-xs font-bold text-slate-500 hover:text-primary inline-flex items-center gap-0.5" onClick={(e) => { e.stopPropagation(); toggleExpand(u); }}>
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </td>
+                    </motion.tr>
+                    {isExpanded && (
+                      <tr className="bg-slate-50/40">
+                        <td colSpan={role === 'reseller' ? 9 : 8} className="py-4 px-6 border-b border-slate-200/60">
+                          <div className="mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg shadow-sm border border-purple-200/50 shrink-0">
+                                {u.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-slate-800 text-sm">{u.name}</h4>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                  {u.phone || 'No phone'} · {u.username} · Rate: Rs {u.gb_rate}/GB
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">
+                                {historyData.length} Transactions
+                              </span>
+                              {historyData[0] && (
+                                <span className="text-xs text-slate-400">
+                                  Last: {datet(historyData[0].created_at)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">Transaction History</p>
+
+                          {loadingHistory ? (
+                            <div className="flex justify-center items-center py-8"><Spinner /></div>
+                          ) : historyData.length === 0 ? (
+                            <EmptyState>No transaction history found for this user.</EmptyState>
+                          ) : (
+                            <div className="relative border-l border-slate-200 pl-6 ml-4 my-2 space-y-3">
+                              {historyData.map((t, i) => {
+                                let iconBg = 'bg-blue-500';
+                                let iconNode = <CreditCard size={10} className="text-white" />;
+                                if (t.kind === 'wallet') {
+                                  iconBg = 'bg-emerald-500';
+                                  iconNode = <Wallet size={10} className="text-white" />;
+                                } else if (t.kind === 'invoice') {
+                                  iconBg = 'bg-purple-500';
+                                  iconNode = <FileText size={10} className="text-white" />;
+                                }
+
+                                return (
+                                  <div key={i} className="relative pl-2">
+                                    <div className={`absolute -left-[35px] top-3.5 w-5 h-5 rounded-full border border-slate-100 ${iconBg} shadow-sm flex items-center justify-center z-10`}>
+                                      {iconNode}
+                                    </div>
+
+                                    <div className="bg-white hover:bg-slate-50 border border-slate-100 rounded-xl py-2 px-3 flex justify-between gap-4 transition-colors text-xs items-center shadow-sm">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <span className="font-bold text-slate-800 text-xs">{t.title}</span>
+                                          {i === 0 && (
+                                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-bold border border-emerald-200 uppercase tracking-wide">
+                                              Latest
+                                            </span>
+                                          )}
+                                          <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold border border-slate-200 font-mono">
+                                            {t.reference}
+                                          </span>
+                                          <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${
+                                            t.statusTone === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                            t.statusTone === 'danger' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                            'bg-slate-50 text-slate-700 border-slate-100'
+                                          }`}>
+                                            {t.statusBadge}
+                                          </span>
+                                        </div>
+
+                                        <div className="mt-1 text-slate-500 flex items-center gap-1.5 flex-wrap text-[11px]">
+                                          <span>{t.subtext}</span>
+                                          {t.note && (
+                                            <>
+                                              <span className="text-slate-300">|</span>
+                                              <span className="text-slate-400 italic">"{t.note}"</span>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      <div className="text-right shrink-0 flex flex-col justify-between py-0.5">
+                                        <p className="text-[10px] text-slate-400">
+                                          {datet(t.created_at)}
+                                        </p>
+                                        <p className={`text-sm font-extrabold mt-1.5 ${t.amountColor}`}>
+                                          {t.amountLabel}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                     )}
-                    <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => { setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '' }) }}>Fund</button>
-                    <button className="text-xs font-bold text-slate-500 hover:underline" onClick={() => toggle(u)}>{u.status === 'active' ? 'Disable' : 'Enable'}</button>
-                  </td>
-                </motion.tr>
-              ))}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
           {(data?.data || []).length === 0 && <EmptyState>No {label.toLowerCase()}s yet.</EmptyState>}
@@ -222,6 +434,39 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             <Database size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-10" type="number" placeholder="GB amount" value={fund.gb_amount} onChange={(e) => setFund({ ...fund, gb_amount: e.target.value })} />
           </div>
+
+          {+fund.gb_amount > 0 && (() => {
+            const total = +fund.gb_amount * +(fundUser?.gb_rate || 0)
+            const paid = Math.min(+fund.gb_paid || 0, total)
+            const due = Math.max(total - paid, 0)
+            return (
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 font-semibold">Allocation cost</span>
+                  <span className="font-bold text-slate-800">{rs(total)}</span>
+                  <span className="text-[10px] text-slate-400">@ {rs(fundUser?.gb_rate)}/GB</span>
+                </div>
+                <div className="relative">
+                  <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="input pl-10"
+                    type="number"
+                    min="0"
+                    max={total}
+                    step="0.01"
+                    placeholder="Paid now (Rs) — optional"
+                    value={fund.gb_paid}
+                    onChange={(e) => setFund({ ...fund, gb_paid: e.target.value })}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/70">
+                  <span className="text-slate-500 font-semibold">Remaining due (added)</span>
+                  <span className={`font-bold ${due > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{rs(due)}</span>
+                </div>
+              </div>
+            )
+          })()}
+
           <p className="text-xs text-muted-foreground">
             {role === 'reseller' ? (
               <>GB Wallet: {gb(user!.gb_balance)}</>

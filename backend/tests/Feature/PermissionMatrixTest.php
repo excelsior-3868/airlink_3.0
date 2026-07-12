@@ -24,6 +24,9 @@ class PermissionMatrixTest extends TestCase
         // Seed default permission records
         $this->seed();
 
+        // Initially ensure create_plan is disabled for resellers/sellers in this test
+        SystemPermission::where('feature', 'create_plan')->update(['reseller' => false, 'seller' => false]);
+
         // 1. Initially, Reseller cannot create plans (403)
         $this->actingAs($reseller, 'sanctum')
             ->postJson('/api/plans', $this->planPayload())

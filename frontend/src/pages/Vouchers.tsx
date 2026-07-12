@@ -24,7 +24,7 @@ export default function Vouchers() {
 
   // Generator state
   const [genOpen, setGenOpen] = useState(false)
-  const [gen, setGen] = useState<any>({ plan_id: '', quantity: 1, validity_days: '', custom_price: '' })
+  const [gen, setGen] = useState<any>({ plan_id: '', quantity: 1, validity_days: '', custom_price: '', custom_base_price: '' })
   const [result, setResult] = useState<any>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -58,6 +58,7 @@ export default function Vouchers() {
       const payload: any = { plan_id: +gen.plan_id, quantity: +gen.quantity }
       if (gen.validity_days) payload.validity_days = +gen.validity_days
       if (gen.custom_price) payload.custom_price = +gen.custom_price
+      if (gen.custom_base_price) payload.custom_base_price = +gen.custom_base_price
       const { data } = await api.post('/vouchers/generate', payload)
       setResult(data.data); refresh(); load()
     } catch (e) { setErr(apiError(e)) } finally { setBusy(false) }
@@ -89,6 +90,16 @@ export default function Vouchers() {
       load()
       refresh()
     } catch (e) { alert(apiError(e)) } finally { setSelling(false) }
+  }
+
+  const toggleDisable = async (v: any) => {
+    try {
+      const endpoint = v.status === 'disabled' ? `/vouchers/${v.id}/enable` : `/vouchers/${v.id}/disable`
+      await api.patch(endpoint)
+      load()
+    } catch (e) {
+      alert(apiError(e))
+    }
   }
 
   return (
@@ -156,6 +167,12 @@ export default function Vouchers() {
                         {v.status === 'new' && (
                           <button className="text-xs font-bold text-emerald-600 hover:underline mr-3" onClick={() => { setSellVoucher(v); setCustomerUsername(''); setSelling(false) }}>Sell</button>
                         )}
+                        <button 
+                          className={`text-xs font-bold hover:underline mr-3 ${v.status === 'disabled' ? 'text-sky-600' : 'text-slate-500'}`} 
+                          onClick={() => toggleDisable(v)}
+                        >
+                          {v.status === 'disabled' ? 'Enable' : 'Disable'}
+                        </button>
                         <button className="text-xs font-bold text-primary hover:underline" onClick={() => openBlob(`/vouchers/${v.id}/card`)}>Card</button>
                       </td>
                     </motion.tr>
@@ -265,7 +282,20 @@ export default function Vouchers() {
                 value={gen.plan_id ? +gen.plan_id : ''}
                 onChange={(val) => setGen({ ...gen, plan_id: val })}
                 placeholder="Select plan..."
-                options={plans.map((p) => ({ value: p.id, label: `${p.name} — ${rs(p.selling_price)} ${p.data_gb ? `/ ${gb(p.data_gb)}` : ''}` }))}
+                options={plans.map((p) => ({
+                  value: p.id,
+                  label: `${p.name}${p.data_gb ? ` — ${gb(p.data_gb)}` : ''}`,
+                  badge: (() => {
+                    const creator = p.creator
+                    if (!creator || creator.role === 'admin') {
+                      return <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full uppercase shrink-0">Admin</span>
+                    }
+                    if (creator.role === 'reseller') {
+                      return <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full uppercase shrink-0">Reseller</span>
+                    }
+                    return <span className="text-[10px] bg-amber-50 text-amber-600 font-bold px-2 py-0.5 rounded-full uppercase shrink-0">Seller: {creator.username}</span>
+                  })()
+                }))}
               /></div>
 
             {/* Quick Quantities */}
@@ -285,15 +315,17 @@ export default function Vouchers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div><label className="text-xs font-semibold text-slate-500">Quantity</label><input className="input mt-1" type="number" min={1} max={20000} value={gen.quantity} onChange={(e) => setGen({ ...gen, quantity: +e.target.value })} /></div>
               <div><label className="text-xs font-semibold text-slate-500">Validity (days, optional)</label><input className="input mt-1" type="number" value={gen.validity_days} onChange={(e) => setGen({ ...gen, validity_days: e.target.value })} placeholder="Plan default" /></div>
               <div><label className="text-xs font-semibold text-slate-500">Retail Price (Rs., optional)</label><input className="input mt-1" type="number" min={0.00} step="0.01" value={gen.custom_price} onChange={(e) => setGen({ ...gen, custom_price: e.target.value })} placeholder={plan ? `${plan.selling_price}` : "Plan default"} /></div>
+              <div><label className="text-xs font-semibold text-slate-500">Base Price (Rs., optional)</label><input className="input mt-1" type="number" min={0.00} step="0.01" value={gen.custom_base_price} onChange={(e) => setGen({ ...gen, custom_base_price: e.target.value })} placeholder={plan ? `${plan.base_price}` : "Plan default"} /></div>
             </div>
             {plan && (
               <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-1">
-                <div className="flex justify-between"><span className="text-muted-foreground">Estimated Retail Value</span><span className="font-bold">{rs((gen.custom_price !== '' ? +gen.custom_price : plan.selling_price) * gen.quantity)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Estimated Retail Value</span><span className="font-bold">{rs(Number(gen.custom_price !== '' ? gen.custom_price : plan.selling_price) * (gen.quantity || 0))}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Total GB Required</span><span className={`font-bold ${shortGb ? 'text-rose-500' : ''}`}>{gb(totalGb)}</span></div>
+                <div className="flex justify-between border-t border-slate-200/60 pt-1 mt-1 text-xs"><span className="text-muted-foreground">Available GB Balance</span><span className="font-semibold text-slate-700">{gb(user!.gb_balance)}</span></div>
               </div>
             )}
             {shortGb && plan && (

@@ -9,6 +9,7 @@ import Bandwidths from './pages/Bandwidths'
 import Users from './pages/Users'
 import Wallet from './pages/Wallet'
 import Gb from './pages/Gb'
+import Transactions from './pages/Transactions'
 import Vouchers from './pages/Vouchers'
 import Reports from './pages/Reports'
 import Nas from './pages/Nas'
@@ -17,7 +18,7 @@ import Permissions from './pages/Permissions'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading…</div>
+  if (loading) return null
   if (!user) return <Navigate to="/login" replace />
   return children
 }
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/sellers" element={<Users role="seller" />} />
         <Route path="/wallet" element={<Wallet />} />
         <Route path="/gb" element={<Gb />} />
+        <Route path="/transactions" element={<Transactions />} />
         <Route path="/vouchers" element={<Vouchers />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/nas" element={<Nas />} />

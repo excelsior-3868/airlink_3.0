@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 // --- Public ---
@@ -60,6 +61,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/gb/transactions', [GbController::class, 'transactions']);
     Route::post('/gb/allocate', [GbController::class, 'allocate'])->middleware('permission:allocate_gb');
 
+    // Unified transaction feed (wallet + GB + invoices + payments), role-scoped.
+    Route::get('/transactions', [TransactionController::class, 'index']);
+
     // Billing & Invoices
     Route::get('/billing/invoices', [BillingController::class, 'invoices']);
     Route::get('/billing/payments', [BillingController::class, 'payments']);
@@ -76,8 +80,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/vouchers/{voucher}', [VoucherController::class, 'show']);
     Route::get('/vouchers/{voucher}/card', [VoucherController::class, 'card']);
     Route::delete('/vouchers/{voucher}', [VoucherController::class, 'destroy'])->middleware('permission:delete_voucher');
-    Route::patch('/vouchers/{voucher}/disable', [VoucherController::class, 'disable'])->middleware('role:admin');
-    Route::patch('/vouchers/{voucher}/enable', [VoucherController::class, 'enable'])->middleware('role:admin');
+    Route::patch('/vouchers/{voucher}/disable', [VoucherController::class, 'disable']);
+    Route::patch('/vouchers/{voucher}/enable', [VoucherController::class, 'enable']);
 
     // Reports — used-voucher package summary (scoped); drill-down via /vouchers.
     Route::get('/reports/package-summary', [ReportController::class, 'packageSummary'])->middleware('permission:reports');

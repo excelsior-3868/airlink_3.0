@@ -40,6 +40,26 @@ class VoucherGenerationTest extends TestCase
         $this->assertEquals(4, DB::table('radreply')->where('attribute', 'Mikrotik-Rate-Limit')->count());
     }
 
+    public function test_generation_supports_custom_prices(): void
+    {
+        $admin = $this->makeUser('admin', ['wallet_balance' => 1000, 'gb_balance' => 100]);
+        $plan = $this->plan();
+
+        $res = $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/vouchers/generate', [
+                'plan_id' => $plan->id, 
+                'quantity' => 1,
+                'custom_price' => 180.00,
+                'custom_base_price' => 120.00
+            ]);
+
+        $res->assertStatus(201);
+
+        $voucher = \App\Models\Voucher::first();
+        $this->assertEquals(180.00, (float) $voucher->price);
+        $this->assertEquals(120.00, (float) $voucher->base_price);
+    }
+
     public function test_generation_rejects_when_gb_insufficient_and_rolls_back(): void
     {
         $admin = $this->makeUser('admin', ['wallet_balance' => 100000, 'gb_balance' => 10]);

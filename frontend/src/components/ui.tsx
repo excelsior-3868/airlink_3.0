@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { ReactNode, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle } from 'lucide-react'
 
 export function GlassCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`glass-card p-5 sm:p-6 ${className}`}>{children}</div>
@@ -22,10 +22,67 @@ export function StatCard({ label, value, icon, sub, iconColorClass = 'text-prima
     >
       <div>
         <p className="text-muted-foreground text-xs sm:text-sm font-medium">{label}</p>
-        <p className="text-2xl lg:text-3xl font-bold mt-1 tracking-tight">{value}</p>
+        <p className="text-xl lg:text-2xl font-bold mt-1 tracking-tight">{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </div>
       {icon && <div className={`rounded-2xl p-2.5 shrink-0 flex items-center justify-center ${iconColorClass}`}>{icon}</div>}
+    </motion.div>
+  )
+}
+
+export function VoucherStatCard({
+  title,
+  vouchers,
+  icon,
+  iconColorClass = 'text-rose-500 bg-rose-50 border border-rose-100/50'
+}: {
+  title: string;
+  vouchers: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+  icon?: ReactNode;
+  iconColorClass?: string;
+}) {
+  const total = vouchers?.total || 0;
+  const byStatus = vouchers?.by_status || {};
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="glass-card p-4 flex flex-col justify-between"
+    >
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-muted-foreground text-xs sm:text-sm font-medium">{title}</p>
+          <p className="text-xl lg:text-2xl font-bold mt-0.5 tracking-tight">{total.toLocaleString()}</p>
+        </div>
+        {icon && (
+          <div className={`rounded-2xl p-2 shrink-0 flex items-center justify-center ${iconColorClass}`}>
+            {icon}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mt-2.5">
+        <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold border border-emerald-100/50 shrink-0">
+          {byStatus.active || 0} Active
+        </span>
+        <span className="px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[10px] font-bold border border-rose-100/50 shrink-0">
+          {byStatus.expired || 0} Expired
+        </span>
+        <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 shrink-0">
+          {byStatus.disabled || 0} Disabled
+        </span>
+        <span className="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[10px] font-bold border border-sky-100/50 shrink-0">
+          {byStatus.new || 0} New
+        </span>
+        <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-100/50 shrink-0">
+          {byStatus.sold || 0} Sold
+        </span>
+      </div>
     </motion.div>
   )
 }
@@ -52,10 +109,12 @@ export function PageTitle({ title, subtitle, action, icon }: { title: string; su
         {/* Wallet & GB Balance glass-badges */}
         {user && (
           <div className="flex items-center gap-2.5 bg-white/70 backdrop-blur-md border border-white/80 rounded-2xl p-2 px-3.5 shadow-sm text-xs select-none">
-            <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
-              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
-              <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
-            </div>
+            {user.role !== 'reseller' && (
+              <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
+                <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">GB:</span>
               <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
@@ -146,10 +205,19 @@ export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="text-center text-muted-foreground text-sm py-12">{children}</div>
 }
 
+export function Spinner({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex items-center justify-center py-16 ${className}`}>
+      <div className="h-9 w-9 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+    </div>
+  )
+}
+
 export interface SelectOption {
   value: any;
   label: string;
   icon?: ReactNode;
+  badge?: ReactNode;
 }
 
 export function CustomSelect({
@@ -178,7 +246,44 @@ export function CustomSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const selected = options.find((o) => o.value === value)
+  const getStatusDetails = (val: any, originalLabel: string) => {
+    const s = String(val).toLowerCase();
+    
+    let label = originalLabel;
+    if (['new', 'sold', 'active', 'expired', 'disabled'].includes(s)) {
+      label = s.charAt(0).toUpperCase() + s.slice(1);
+    } else if (val === '' && (originalLabel.toLowerCase() === 'all statuses' || originalLabel.toLowerCase() === 'all status')) {
+      label = 'All Statuses';
+    }
+
+    let icon: ReactNode = null;
+    if (s === 'new') {
+      icon = <PlusCircle size={14} className="text-blue-500" />;
+    } else if (s === 'sold') {
+      icon = <Tag size={14} className="text-amber-500" />;
+    } else if (s === 'active') {
+      icon = <Zap size={14} className="text-emerald-500" />;
+    } else if (s === 'expired') {
+      icon = <Clock size={14} className="text-rose-500" />;
+    } else if (s === 'disabled') {
+      icon = <Ban size={14} className="text-slate-400" />;
+    } else if (val === '' && (originalLabel.toLowerCase() === 'all statuses' || originalLabel.toLowerCase() === 'all status')) {
+      icon = <Ticket size={14} className="text-slate-400" />;
+    }
+
+    return { label, icon };
+  };
+
+  const resolvedOptions = options.map((opt) => {
+    const details = getStatusDetails(opt.value, opt.label);
+    return {
+      ...opt,
+      label: details.label,
+      icon: opt.icon || details.icon
+    };
+  });
+
+  const selected = resolvedOptions.find((o) => o.value === value)
 
   return (
     <div ref={ref} className={`relative inline-block text-left min-w-[180px] ${open ? 'z-30' : 'z-0'} ${className}`}>
@@ -196,13 +301,16 @@ export function CustomSelect({
           )}
           <span className="truncate">{selected ? selected.label : placeholder}</span>
         </div>
-        <ChevronDown size={16} className={`text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {selected?.badge}
+          <ChevronDown size={16} className={`text-slate-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`} />
+        </div>
       </button>
 
       {/* Options Dropdown list */}
       {open && (
         <div className="absolute left-0 mt-1.5 w-full min-w-[200px] bg-white border border-slate-200/80 rounded-2xl shadow-xl p-1.5 z-50 flex flex-col gap-0.5 max-h-60 overflow-y-auto">
-          {options.map((opt) => {
+          {resolvedOptions.map((opt) => {
             const isSelected = opt.value === value
             return (
               <button
@@ -224,11 +332,14 @@ export function CustomSelect({
                   )}
                   <span className="truncate">{opt.label}</span>
                 </div>
-                {isSelected && (
-                  <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                    <Check size={12} className="text-[#003164]" />
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {opt.badge}
+                  {isSelected && (
+                    <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                      <Check size={12} className="text-[#003164]" />
+                    </div>
+                  )}
+                </div>
               </button>
             )
           })}

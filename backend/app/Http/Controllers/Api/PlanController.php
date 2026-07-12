@@ -12,12 +12,33 @@ class PlanController extends Controller
     /** List plans — all roles. */
     public function index(Request $request): JsonResponse
     {
-        $query = InternetPlan::query()->orderBy('name');
+        $query = InternetPlan::query()->with('creator:id,name,username,role,gb_balance')->orderBy('name');
         if ($request->boolean('active_only')) {
             $query->where('status', 'active');
         }
         if ($request->filled('type')) {
             $query->where('type', $request->input('type'));
+        }
+
+        $actor = $request->user();
+        if ($actor && !$actor->isAdmin()) {
+            $adminIds = \App\Models\User::where('role', 'admin')->pluck('id')->toArray();
+            if ($actor->isReseller()) {
+                $sellerIds = \App\Models\User::where('parent_id', $actor->id)->pluck('id')->toArray();
+                $query->where(function ($q) use ($actor, $adminIds, $sellerIds) {
+                    $q->whereNull('created_by')
+                      ->orWhereIn('created_by', $adminIds)
+                      ->orWhere('created_by', $actor->id)
+                      ->orWhereIn('created_by', $sellerIds);
+                });
+            } else if ($actor->isSeller()) {
+                $query->where(function ($q) use ($actor, $adminIds) {
+                    $q->whereNull('created_by')
+                      ->orWhereIn('created_by', $adminIds)
+                      ->orWhere('created_by', $actor->parent_id)
+                      ->orWhere('created_by', $actor->id);
+                });
+            }
         }
 
         return $this->ok($query->get());
@@ -28,10 +49,15 @@ class PlanController extends Controller
         return $this->ok($plan);
     }
 
-    /** Create — admin only (enforced by route middleware). */
+    /** Create — admin, reseller, and seller. */
     public function store(Request $request): JsonResponse
     {
         $data = $this->validateData($request);
+        if ($request->input('type') === 'hotspot') {
+            $data['base_price'] = $data['base_price'] ?? 0;
+            $data['selling_price'] = $data['selling_price'] ?? 0;
+        }
+
         if (!empty($data['bandwidth_id'])) {
             $bw = \App\Models\Bandwidth::find($data['bandwidth_id']);
             if ($bw) {
@@ -40,12 +66,23 @@ class PlanController extends Controller
             }
         }
 
+        $data['created_by'] = $request->user()->id;
+
         return $this->created(InternetPlan::create($data), 'Plan created.');
     }
 
     public function update(Request $request, InternetPlan $plan): JsonResponse
     {
+        if (!$request->user()->isAdmin() && $plan->created_by !== $request->user()->id) {
+            return $this->fail('You do not have permission to modify this plan.', 403);
+        }
+
         $data = $this->validateData($request, $plan->id);
+        if ($request->input('type') === 'hotspot') {
+            $data['base_price'] = $data['base_price'] ?? 0;
+            $data['selling_price'] = $data['selling_price'] ?? 0;
+        }
+
         if (!empty($data['bandwidth_id'])) {
             $bw = \App\Models\Bandwidth::find($data['bandwidth_id']);
             if ($bw) {
@@ -61,6 +98,10 @@ class PlanController extends Controller
 
     public function destroy(InternetPlan $plan): JsonResponse
     {
+        if (!request()->user()->isAdmin() && $plan->created_by !== request()->user()->id) {
+            return $this->fail('You do not have permission to delete this plan.', 403);
+        }
+
         if ($plan->vouchers()->exists()) {
             return $this->fail('Cannot delete a plan that already has vouchers.', 422);
         }
@@ -71,6 +112,8 @@ class PlanController extends Controller
 
     private function validateData(Request $request, ?int $ignoreId = null): array
     {
+        $isHotspot = $request->input('type') === 'hotspot';
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['nullable', 'in:hotspot,pppoe'],
@@ -80,8 +123,8 @@ class PlanController extends Controller
             'data_gb' => ['nullable', 'numeric', 'min:0'],
             'time_limit' => ['nullable', 'integer', 'min:0'],
             'validity_days' => ['required', 'integer', 'min:0'],
-            'base_price' => ['required', 'numeric', 'min:0'],
-            'selling_price' => ['required', 'numeric', 'min:0'],
+            'base_price' => [$isHotspot ? 'nullable' : 'required', 'numeric', 'min:0'],
+            'selling_price' => [$isHotspot ? 'nullable' : 'required', 'numeric', 'min:0'],
             'api_nas' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:active,disabled'],
         ]);

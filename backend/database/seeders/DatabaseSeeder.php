@@ -76,7 +76,7 @@ class DatabaseSeeder extends Seeder
 
         // 4. Seed default System Permissions matrix
         $perms = [
-            ['feature' => 'create_plan', 'display_name' => 'Create Plan', 'category' => 'System', 'description' => 'Define new internet plans and pricing', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
+            ['feature' => 'create_plan', 'display_name' => 'Create Plan', 'category' => 'System', 'description' => 'Define new internet plans and pricing', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
             ['feature' => 'create_reseller', 'display_name' => 'Create Reseller', 'category' => 'User Management', 'description' => 'Register top-level resellers parented to admin', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
             ['feature' => 'create_seller', 'display_name' => 'Create Seller', 'category' => 'User Management', 'description' => 'Register retail seller accounts under a reseller', 'admin' => 1, 'reseller' => 1, 'seller' => 0],
             ['feature' => 'wallet_load', 'display_name' => 'Wallet Load', 'category' => 'Wallet', 'description' => 'Load monetary balance to downline user accounts', 'admin' => 1, 'reseller' => 1, 'seller' => 0],

@@ -28,7 +28,7 @@ class VoucherService
      * and GB are deducted. A failure anywhere rolls the whole thing back, so
      * we can never leave orphaned credentials or a double-spent balance.
      */
-    public function generate(User $actor, InternetPlan $plan, int $quantity, ?int $validityDays = null, ?string $note = null, ?float $customPrice = null): Batch
+    public function generate(User $actor, InternetPlan $plan, int $quantity, ?int $validityDays = null, ?string $note = null, ?float $customPrice = null, ?float $customBasePrice = null): Batch
     {
         if ($quantity < 1 || $quantity > self::MAX_BATCH) {
             throw ValidationException::withMessages(['quantity' => 'Quantity must be between 1 and '.self::MAX_BATCH.'.']);
@@ -40,6 +40,7 @@ class VoucherService
         $validity = $validityDays ?: (int) $plan->validity_days;
         $gbPer = (float) ($plan->data_gb ?? 0);
         $pricePer = $customPrice !== null ? (float) $customPrice : (float) $plan->selling_price;
+        $basePricePer = $customBasePrice !== null ? (float) $customBasePrice : (float) ($plan->base_price ?? 0);
         $totalGb = $gbPer * $quantity;
         $totalPrice = $pricePer * $quantity;
 
@@ -55,7 +56,7 @@ class VoucherService
             default => [null, null],
         };
 
-        return DB::transaction(function () use ($actor, $plan, $quantity, $validity, $gbPer, $pricePer, $totalGb, $totalPrice, $resellerId, $sellerId, $note) {
+        return DB::transaction(function () use ($actor, $plan, $quantity, $validity, $gbPer, $pricePer, $basePricePer, $totalGb, $totalPrice, $resellerId, $sellerId, $note) {
             $batch = Batch::create([
                 'batch_code' => $this->uniqueBatchCode(),
                 'plan_id' => $plan->id,
@@ -76,6 +77,7 @@ class VoucherService
                     'plan_id' => $plan->id, 'batch_id' => $batch->id,
                     'owner_id' => $actor->id, 'reseller_id' => $resellerId, 'seller_id' => $sellerId,
                     'data_gb' => $gbPer ?: null, 'validity_days' => $validity, 'price' => $pricePer,
+                    'base_price' => $basePricePer,
                     'status' => 'new', 'expires_at' => $expiresAt,
                     'created_at' => $now, 'updated_at' => $now,
                 ];

@@ -49,10 +49,25 @@ class WalletController extends Controller
         $actor = $request->user();
         $visibleIds = User::query()->visibleTo($actor)->pluck('id');
 
-        $tx = WalletTransaction::whereIn('user_id', $visibleIds)
+        $userId = $request->input('user_id');
+        $query = WalletTransaction::query()
             ->with(['user:id,username', 'fromUser:id,username', 'toUser:id,username'])
-            ->latest()
-            ->paginate($request->integer('per_page', 20));
+            ->latest();
+
+        if ($userId) {
+            if (! in_array($userId, $visibleIds->all())) {
+                return $this->fail('Unauthorized access to user transaction history.', 403);
+            }
+            $query->where(function($q) use ($userId) {
+                $q->where('user_id', $userId)
+                  ->orWhere('from_user_id', $userId)
+                  ->orWhere('to_user_id', $userId);
+            });
+        } else {
+            $query->whereIn('user_id', $visibleIds);
+        }
+
+        $tx = $query->paginate($request->integer('per_page', 20));
 
         return $this->ok($tx);
     }

@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle } from 'lucide-react'
+import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle, Package } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { rs, gb, num, date } from '../lib/format'
-import { StatCard, PageTitle, GlassCard, EmptyState, Modal } from '../components/ui'
+import { StatCard, PageTitle, GlassCard, EmptyState, Modal, Spinner, VoucherStatCard } from '../components/ui'
 import { motion } from 'framer-motion'
+
+// Module-level cache so navigating away and back shows the dashboard instantly
+// while it refreshes in the background, instead of a full loading state.
+let dashboardCache: any = null
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [d, setD] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [d, setD] = useState<any>(dashboardCache)
+  const [loading, setLoading] = useState(!dashboardCache)
 
   const [collectOpen, setCollectOpen] = useState(false)
   const [downlines, setDownlines] = useState<any[]>([])
@@ -26,6 +30,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.get('/dashboard').then((r) => {
+      dashboardCache = r.data.data
       setD(r.data.data)
       if (r.data.data.role === 'admin' || r.data.data.role === 'reseller') {
         fetchDownlines(r.data.data)
@@ -43,6 +48,7 @@ export default function Dashboard() {
         note: collectForm.note || undefined,
       })
       const r = await api.get('/dashboard')
+      dashboardCache = r.data.data
       setD(r.data.data)
       setCollectOpen(false)
       setCollectForm({ user_id: '', amount: '', note: '' })
@@ -53,7 +59,7 @@ export default function Dashboard() {
     }
   }
 
-  if (loading || !d) return <EmptyState>Loading dashboard…</EmptyState>
+  if (loading || !d) return <Spinner />
 
   return (
     <div>
@@ -84,7 +90,7 @@ export default function Dashboard() {
             <StatCard label="Outstanding Reseller Due" value={<span className="text-rose-600">{rs(d.outstanding_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
             <StatCard label="Online Users" value={<span className="text-sky-600">{num(d.online)}</span>} icon={<Wifi size={22} />} iconColorClass="text-sky-600 bg-sky-50 border border-sky-100/50" />
             <StatCard label="Offline Users" value={<span className="text-slate-600">{num(d.offline)}</span>} icon={<WifiOff size={22} />} iconColorClass="text-slate-500 bg-slate-50 border border-slate-200/50" />
-            <StatCard label="Voucher Generated" value={<span className="text-rose-600">{num(d.vouchers.total)}</span>} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
+            <VoucherStatCard title="Total Vouchers" vouchers={d.vouchers} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
             <StatCard label="Sales Revenue (All-Time)" value={<span className="text-teal-600">{rs(d.revenue)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-teal-600 bg-teal-50 border border-teal-100/50" />
           </div>
 
@@ -144,12 +150,27 @@ export default function Dashboard() {
       {d.role === 'reseller' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Wallet Balance" value={<span className="text-emerald-600">{rs(d.balances.wallet)}</span>} icon={<Wallet size={22} />} iconColorClass="text-emerald-600 bg-emerald-50 border border-emerald-100/50" />
-            <StatCard label="GB Balance" value={<span className="text-cyan-600">{gb(d.balances.gb)}</span>} icon={<Database size={22} />} iconColorClass="text-cyan-600 bg-cyan-50 border border-cyan-100/50" />
+            <StatCard 
+              label="GB Balance (Stock)" 
+              value={<span className="text-cyan-600">{gb(d.balances.gb)}</span>} 
+              icon={<Database size={22} />} 
+              iconColorClass="text-cyan-600 bg-cyan-50 border border-cyan-100/50"
+              sub={<span>Purchased: <strong className="text-slate-700">{gb(d.gb_purchased)}</strong></span>}
+            />
             <StatCard label="My Wallet Due (Payable)" value={<span className="text-rose-600">{rs(d.balances.wallet_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
-            <StatCard label="Seller Outstanding Due" value={<span className="text-purple-600">{rs(d.outstanding_due)}</span>} icon={<Users2 size={22} />} iconColorClass="text-purple-600 bg-purple-50 border border-purple-100/50" />
-            <StatCard label="Today's Sales" value={<span className="text-blue-600">{rs(d.today_sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-blue-600 bg-blue-50 border border-blue-100/50" />
-            <StatCard label="Total Sales (Invoiced)" value={<span className="text-indigo-600">{rs(d.sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-indigo-600 bg-indigo-50 border border-indigo-100/50" />
+            <StatCard 
+              label="GB Allocated to Sellers" 
+              value={<span className="text-purple-600">{gb(d.gb_allocated)}</span>} 
+              icon={<Database size={22} />} 
+              iconColorClass="text-purple-600 bg-purple-50 border border-purple-100/50" 
+              sub={<span>Sellers: <strong className="text-slate-700">{num(d.counts.sellers)}</strong></span>}
+            />
+            <StatCard label="Revenue from Sellers" value={<span className="text-emerald-600">{rs(d.revenue_sellers)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-emerald-600 bg-emerald-50 border border-emerald-100/50" />
+            
+            <VoucherStatCard title="Total Vouchers" vouchers={d.vouchers} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
+            <StatCard label="Voucher Sales" value={<span className="text-blue-600">{rs(d.voucher_sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-blue-600 bg-blue-50 border border-blue-100/50" />
+            <StatCard label="Retail Profit" value={<span className="text-teal-600">{rs(d.retail_profit)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-teal-600 bg-teal-50 border border-teal-100/50" />
+            <StatCard label="Packages" value={<span className="text-amber-600">{num(d.counts.packages)}</span>} icon={<Package size={22} />} iconColorClass="text-amber-600 bg-amber-50 border border-amber-100/50" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -178,10 +199,10 @@ export default function Dashboard() {
             {d.recent_wallet_transfers && (
               <GlassCard>
                 <h3 className="font-bold mb-3 flex items-center gap-2 text-primary">
-                  <History size={18} /> Recent Wallet Transfers
+                  <History size={18} /> Recent Transactions
                 </h3>
                 {d.recent_wallet_transfers.length === 0 ? (
-                  <EmptyState>No wallet transactions found.</EmptyState>
+                  <EmptyState>No recent transactions found.</EmptyState>
                 ) : (
                   <div className="space-y-2">
                     {d.recent_wallet_transfers.map((t: any) => (
@@ -191,8 +212,8 @@ export default function Dashboard() {
                           <p className="text-muted-foreground mt-0.5">{t.note}</p>
                         </div>
                         <div className="text-right">
-                          <p className={`font-bold ${t.type === 'load' || t.type === 'transfer' ? 'text-emerald-600' : 'text-rose-500'}`}>
-                            {t.type === 'load' || t.type === 'transfer' ? '+' : '-'}{rs(t.amount)}
+                          <p className={`font-bold ${t.type === 'load' || t.type === 'transfer' || t.is_positive ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            {t.type === 'load' || t.type === 'transfer' || t.is_positive ? '+' : '-'}{rs(t.amount)}
                           </p>
                           <p className="text-muted-foreground mt-0.5">{date(t.created_at)}</p>
                         </div>
@@ -213,9 +234,8 @@ export default function Dashboard() {
             <StatCard label="Wallet Balance" value={<span className="text-emerald-600">{rs(d.balances.wallet)}</span>} icon={<Wallet size={22} />} iconColorClass="text-emerald-600 bg-emerald-50 border border-emerald-100/50" />
             <StatCard label="GB Balance (Stock)" value={<span className="text-cyan-600">{gb(d.balances.gb)}</span>} icon={<Database size={22} />} iconColorClass="text-cyan-600 bg-cyan-50 border border-cyan-100/50" />
             <StatCard label="My Wallet Due (Payable)" value={<span className="text-rose-600">{rs(d.balances.wallet_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
-            <StatCard label="Today's Vouchers" value={<span className="text-rose-600">{num(d.today.vouchers)}</span>} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
             <StatCard label="Today's Sales" value={<span className="text-blue-600">{rs(d.today.sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-blue-600 bg-blue-50 border border-blue-100/50" />
-            <StatCard label="Remaining Vouchers" value={<span className="text-amber-600">{num(d.vouchers.remaining)}</span>} icon={<Ticket size={22} />} iconColorClass="text-amber-600 bg-amber-50 border border-amber-100/50" />
+            <VoucherStatCard title="Total Vouchers" vouchers={d.vouchers} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
           </div>
 
           <div className="grid grid-cols-1 gap-4">

@@ -42,6 +42,74 @@ class CreditBillingTest extends TestCase
         $this->assertEquals('due', $invoice->status);
     }
 
+    public function test_partial_payment_on_allocation_reduces_due_and_records_payment(): void
+    {
+        $admin = $this->makeUser('admin', ['gb_balance' => 5000]);
+        $reseller = $this->makeUser('reseller', ['parent_id' => $admin->id, 'gb_rate' => 120.00]);
+
+        // Allocate 100 GB (total Rs 12,000) but settle Rs 5,000 upfront.
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/gb/allocate', [
+                'user_id' => $reseller->id,
+                'gb_amount' => 100,
+                'paid_amount' => 5000,
+            ])
+            ->assertOk();
+
+        // Only the unpaid remainder (12,000 - 5,000) becomes due.
+        $this->assertEquals(7000, $reseller->fresh()->wallet_due);
+
+        // Invoice stamped with the partial payment, still 'due'.
+        $invoice = Invoice::where('receiver_id', $reseller->id)->first();
+        $this->assertEquals(12000, $invoice->total_amount);
+        $this->assertEquals(5000, $invoice->paid_amount);
+        $this->assertEquals('due', $invoice->status);
+
+        // Upfront settlement recorded as a payment from reseller to admin.
+        $payment = Payment::where('sender_id', $reseller->id)->where('receiver_id', $admin->id)->first();
+        $this->assertNotNull($payment);
+        $this->assertEquals(5000, $payment->amount);
+    }
+
+    public function test_full_payment_on_allocation_leaves_no_due_and_marks_invoice_paid(): void
+    {
+        $admin = $this->makeUser('admin', ['gb_balance' => 5000]);
+        $reseller = $this->makeUser('reseller', ['parent_id' => $admin->id, 'gb_rate' => 100.00]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/gb/allocate', [
+                'user_id' => $reseller->id,
+                'gb_amount' => 50,
+                'paid_amount' => 5000, // 50 * 100 = full amount
+            ])
+            ->assertOk();
+
+        $this->assertEquals(0, $reseller->fresh()->wallet_due);
+
+        $invoice = Invoice::where('receiver_id', $reseller->id)->first();
+        $this->assertEquals('paid', $invoice->status);
+        $this->assertEquals(5000, $invoice->paid_amount);
+    }
+
+    public function test_paid_amount_cannot_exceed_allocation_total(): void
+    {
+        $admin = $this->makeUser('admin', ['gb_balance' => 5000]);
+        $reseller = $this->makeUser('reseller', ['parent_id' => $admin->id, 'gb_rate' => 100.00]);
+
+        $this->actingAs($admin, 'sanctum')
+            ->postJson('/api/gb/allocate', [
+                'user_id' => $reseller->id,
+                'gb_amount' => 10,      // total Rs 1,000
+                'paid_amount' => 5000,  // more than the total
+            ])
+            ->assertStatus(422);
+
+        // Nothing moved.
+        $this->assertEquals(5000, $admin->fresh()->gb_balance);
+        $this->assertEquals(0, $reseller->fresh()->gb_balance);
+        $this->assertEquals(0, $reseller->fresh()->wallet_due);
+    }
+
     public function test_payment_collection_reduces_due_and_pays_off_invoices(): void
     {
         $admin = $this->makeUser('admin');

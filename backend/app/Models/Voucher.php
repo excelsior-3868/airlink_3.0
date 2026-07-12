@@ -14,6 +14,7 @@ class Voucher extends Model
         return [
             'data_gb' => 'decimal:3',
             'price' => 'decimal:2',
+            'base_price' => 'decimal:2',
             'sold_at' => 'datetime',
             'activated_at' => 'datetime',
             'expires_at' => 'datetime',
