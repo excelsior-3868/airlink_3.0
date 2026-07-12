@@ -93,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // NAS / router management (admin only). List is readable by all authed users.
     Route::get('/nas', [NasController::class, 'index']);
     Route::middleware('role:admin')->group(function () {
+        Route::post('/admin/system-load', [UserController::class, 'systemLoad']);
         Route::patch('/users/{user}/gb-rate', [UserController::class, 'updateGbRate']);
         Route::post('/nas', [NasController::class, 'store']);
         Route::put('/nas/{nas}', [NasController::class, 'update']);

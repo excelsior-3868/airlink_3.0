@@ -34,11 +34,18 @@ services:
     container_name: airlink-prod-app
     restart: unless-stopped
     environment:
+      DB_CONNECTION: mysql
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_DATABASE: airlink
       DB_USERNAME: airlink
       DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      LEGACY_DB_HOST: mariadb
+      LEGACY_DB_PORT: 3306
+      LEGACY_DB_DATABASE: airlink_legacy
+      LEGACY_DB_USERNAME: airlink
+      LEGACY_DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      APP_KEY: ${APP_KEY}
       APP_ENV: production
       APP_DEBUG: "false"
       RUN_MIGRATIONS: 1
@@ -64,11 +71,20 @@ services:
     container_name: airlink-prod-queue
     restart: unless-stopped
     environment:
+      DB_CONNECTION: mysql
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_DATABASE: airlink
       DB_USERNAME: airlink
       DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      LEGACY_DB_HOST: mariadb
+      LEGACY_DB_PORT: 3306
+      LEGACY_DB_DATABASE: airlink_legacy
+      LEGACY_DB_USERNAME: airlink
+      LEGACY_DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      APP_KEY: ${APP_KEY}
+      APP_ENV: production
+      APP_DEBUG: "false"
       RUN_MIGRATIONS: 0
     command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=120"]
     depends_on:
@@ -81,11 +97,20 @@ services:
     container_name: airlink-prod-scheduler
     restart: unless-stopped
     environment:
+      DB_CONNECTION: mysql
       DB_HOST: mariadb
       DB_PORT: 3306
       DB_DATABASE: airlink
       DB_USERNAME: airlink
       DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      LEGACY_DB_HOST: mariadb
+      LEGACY_DB_PORT: 3306
+      LEGACY_DB_DATABASE: airlink_legacy
+      LEGACY_DB_USERNAME: airlink
+      LEGACY_DB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+      APP_KEY: ${APP_KEY}
+      APP_ENV: production
+      APP_DEBUG: "false"
       RUN_MIGRATIONS: 0
     command: ["php", "artisan", "schedule:work"]
     depends_on:

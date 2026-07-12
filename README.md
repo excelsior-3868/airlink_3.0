@@ -28,7 +28,7 @@ docker compose exec backend php artisan legacy:import          # add --dry-run t
 
 | Service | URL | Login |
 |---|---|---|
-| Frontend (SPA) | http://localhost:5173 | `admin` / `admin123` |
+| Frontend (SPA) | http://localhost:5173 | `admin` / `admin@123` |
 | Backend API | http://localhost:8000/api | Sanctum bearer token |
 | phpMyAdmin | http://localhost:8080 | `airlink` / `airlink_pass` |
 | FreeRADIUS | `localhost:1812/1813` (udp) | client secret `testing123` |

@@ -15,6 +15,7 @@ import Reports from './pages/Reports'
 import Nas from './pages/Nas'
 import LoginLogs from './pages/LoginLogs'
 import Permissions from './pages/Permissions'
+import SystemLoad from './pages/SystemLoad'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/nas" element={<Nas />} />
         <Route path="/logs" element={<LoginLogs />} />
         <Route path="/permissions" element={<Permissions />} />
+        <Route path="/settings/system-load" element={<SystemLoad />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

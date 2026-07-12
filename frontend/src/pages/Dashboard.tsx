@@ -67,17 +67,6 @@ export default function Dashboard() {
         title="Dashboard" 
         subtitle={`${d.role.charAt(0).toUpperCase() + d.role.slice(1)} account overview & billing metrics`} 
         icon={<LayoutDashboard size={22} className="text-blue-500" />} 
-        action={
-          (d.role === 'admin' || d.role === 'reseller') && (
-            <motion.button 
-              whileTap={{ scale: 0.95 }} 
-              className="btn-primary flex items-center gap-2" 
-              onClick={() => { setCollectErr(''); setCollectOpen(true) }}
-            >
-              <PlusCircle size={16} /> Collect Payment
-            </motion.button>
-          )
-        }
       />
 
       {/* Admin Dashboard */}

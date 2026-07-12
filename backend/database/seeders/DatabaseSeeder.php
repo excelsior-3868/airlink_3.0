@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Administrator',
                 'email' => 'admin@airlink.local',
-                'password' => Hash::make('admin123'),
+                'password' => Hash::make('admin@123'),
                 'role' => 'admin',
                 'status' => 'active',
                 'wallet_balance' => $openingWallet,
@@ -42,37 +42,7 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // 2. Seed Reseller Alpha (Rs 50,000 / 1000 GB from PDF Flow)
-        $reseller = User::firstOrCreate(
-            ['username' => 'reseller_a'],
-            [
-                'name' => 'Reseller Alpha',
-                'email' => 'reseller_a@airlink.local',
-                'password' => Hash::make('reseller123'),
-                'role' => 'reseller',
-                'parent_id' => $admin->id,
-                'created_by' => $admin->id,
-                'status' => 'active',
-                'wallet_balance' => 50000.00,
-                'gb_balance' => 1000.0,
-            ]
-        );
 
-        // 3. Seed Seller Alpha (Rs 10,000 / 200 GB from PDF Flow)
-        $seller = User::firstOrCreate(
-            ['username' => 'seller_a'],
-            [
-                'name' => 'Seller Alpha',
-                'email' => 'seller_a@airlink.local',
-                'password' => Hash::make('seller123'),
-                'role' => 'seller',
-                'parent_id' => $reseller->id,
-                'created_by' => $reseller->id,
-                'status' => 'active',
-                'wallet_balance' => 10000.00,
-                'gb_balance' => 200.0,
-            ]
-        );
 
         // 4. Seed default System Permissions matrix
         $perms = [

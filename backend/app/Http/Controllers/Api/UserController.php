@@ -108,6 +108,61 @@ class UserController extends Controller
         return $this->ok($user, "GB rate updated successfully.");
     }
 
+    /** System load of wallet and/or GB balance directly into the admin's account (Admin only). */
+    public function systemLoad(Request $request): JsonResponse
+    {
+        $actor = $request->user();
+        if (! $actor->isAdmin()) {
+            return $this->fail('Only Admins can perform system loads.', 403);
+        }
+
+        $data = $request->validate([
+            'wallet_amount' => ['nullable', 'numeric', 'min:0'],
+            'gb_amount' => ['nullable', 'numeric', 'min:0'],
+            'note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $walletAmount = (float) ($data['wallet_amount'] ?? 0);
+        $gbAmount = (float) ($data['gb_amount'] ?? 0);
+        $note = $data['note'] ?? 'System manual load';
+
+        if ($walletAmount <= 0 && $gbAmount <= 0) {
+            return $this->fail('Please provide a positive amount for wallet or GB balance.', 422);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($actor, $walletAmount, $gbAmount, $note) {
+            $user = User::whereKey($actor->id)->lockForUpdate()->first();
+
+            if ($walletAmount > 0) {
+                $user->increment('wallet_balance', $walletAmount);
+                $user->refresh();
+                \App\Models\WalletTransaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'opening',
+                    'amount' => $walletAmount,
+                    'balance_after' => $user->wallet_balance,
+                    'note' => $note,
+                    'reference' => 'system:load',
+                ]);
+            }
+
+            if ($gbAmount > 0) {
+                $user->increment('gb_balance', $gbAmount);
+                $user->refresh();
+                \App\Models\GbTransaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'opening',
+                    'gb_amount' => $gbAmount,
+                    'balance_after' => $user->gb_balance,
+                    'reference' => 'system:load',
+                    'note' => $note,
+                ]);
+            }
+        });
+
+        return $this->ok(['user' => $actor->fresh()], 'System load successful.');
+    }
+
     private function validateNewUser(Request $request): array
     {
         $data = $request->validate([

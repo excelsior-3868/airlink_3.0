@@ -38,16 +38,31 @@ const NAV: NavItem[] = [
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500' },
   { to: '/vouchers', label: 'Vouchers', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500' },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500' },
-  { to: '/nas', label: 'NAS / Routers', icon: Router, roles: ['admin'], color: 'text-violet-500' },
-  { to: '/logs', label: 'Login Logs', icon: ShieldCheck, roles: ['admin'], color: 'text-pink-500' },
-  { to: '/permissions', label: 'Permissions', icon: Shield, roles: ['admin'], color: 'text-rose-600' },
+  {
+    label: 'Settings',
+    icon: Shield,
+    roles: ['admin'],
+    color: 'text-slate-500',
+    children: [
+      { to: '/settings/system-load', label: 'System Load', roles: ['admin'], icon: WalletIcon, color: 'text-emerald-500' },
+      { to: '/nas', label: 'NAS / Routers', roles: ['admin'], icon: Router, color: 'text-violet-500' },
+      { to: '/permissions', label: 'Permissions', roles: ['admin'], icon: ShieldCheck, color: 'text-rose-600' },
+      { to: '/logs', label: 'Login Logs', roles: ['admin'], icon: ShieldCheck, color: 'text-pink-500' },
+    ]
+  }
 ]
 
 export default function AppShell() {
   const { user, logout } = useAuth()
   const nav = useNavigate()
   const location = useLocation()
-  const [plansExpanded, setPlansExpanded] = useState(() => location.pathname.startsWith('/plans'))
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    Plan: location.pathname.startsWith('/plans'),
+    Settings: location.pathname.startsWith('/settings') || ['/nas', '/logs', '/permissions'].includes(location.pathname),
+  })
+  const toggleExpanded = (label: string) => {
+    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }))
+  }
   const [profileOpen, setProfileOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
@@ -91,7 +106,7 @@ export default function AppShell() {
               return (
                 <div key={it.label} className="flex flex-col">
                   <button
-                    onClick={() => setPlansExpanded(!plansExpanded)}
+                    onClick={() => toggleExpanded(it.label)}
                     className={`app-sidebar-nav-item w-full flex items-center justify-between group ${
                       hasActiveChild ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
                     }`}
@@ -100,9 +115,9 @@ export default function AppShell() {
                       <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
                       <span className="font-bold">{it.label}</span>
                     </div>
-                    {plansExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    {expanded[it.label] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </button>
-                  {plansExpanded && (
+                  {expanded[it.label] && (
                     <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
                       {it.children
                         .filter((c) => c.roles.includes(user.role))

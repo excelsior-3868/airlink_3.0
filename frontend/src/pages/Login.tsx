@@ -109,40 +109,6 @@ export default function Login() {
           </motion.button>
         </form>
 
-        {/* Quick Testing Login Options */}
-        <div className="mt-8 pt-6 border-t border-slate-100">
-          <p className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Login (Testing)</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { role: 'Admin', user: 'admin', pass: 'admin123' },
-              { role: 'Reseller', user: 'reseller_a', pass: 'reseller123' },
-              { role: 'Seller', user: 'seller_a', pass: 'seller123' }
-            ].map((acc) => (
-              <button
-                key={acc.user}
-                type="button"
-                className="bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-xl p-2 text-center transition-all duration-200 cursor-pointer"
-                onClick={async () => {
-                  setUsername(acc.user)
-                  setPassword(acc.pass)
-                  setErr('')
-                  setBusy(true)
-                  try {
-                    await login(acc.user, acc.pass)
-                    nav('/', { replace: true })
-                  } catch (e) {
-                    setErr(apiError(e))
-                  } finally {
-                    setBusy(false)
-                  }
-                }}
-              >
-                <p className="text-[11px] font-bold text-slate-700">{acc.role}</p>
-                <p className="text-[9px] text-slate-400 font-mono mt-0.5">{acc.user}</p>
-              </button>
-            ))}
-          </div>
-        </div>
       </motion.div>
 
       {/* Footer copyright section */}
