@@ -225,6 +225,9 @@ export default function Dashboard() {
             <StatCard label="My Wallet Due (Payable)" value={<span className="text-rose-600">{rs(d.balances.wallet_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
             <StatCard label="Today's Sales" value={<span className="text-blue-600">{rs(d.today.sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-blue-600 bg-blue-50 border border-blue-100/50" />
             <VoucherStatCard title="Total Vouchers" vouchers={d.vouchers} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
+            <StatCard label="Voucher Sales" value={<span className="text-indigo-600">{rs(d.voucher_sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-indigo-600 bg-indigo-50 border border-indigo-100/50" />
+            <StatCard label="Retail Profit" value={<span className="text-teal-600">{rs(d.retail_profit)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-teal-600 bg-teal-50 border border-teal-100/50" />
+            <StatCard label="Packages" value={<span className="text-amber-600">{num(d.counts.packages)}</span>} icon={<Package size={22} />} iconColorClass="text-amber-600 bg-amber-50 border border-amber-100/50" />
           </div>
 
           <div className="grid grid-cols-1 gap-4">

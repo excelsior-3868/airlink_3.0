@@ -225,13 +225,15 @@ export function CustomSelect({
   onChange,
   options,
   placeholder = 'Select option...',
-  className = ''
+  className = '',
+  disabled = false
 }: {
   value: any;
   onChange: (val: any) => void;
   options: SelectOption[];
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -290,8 +292,9 @@ export function CustomSelect({
       {/* Trigger Button */}
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl hover:border-slate-300 transition-all text-sm font-semibold text-slate-700 shadow-sm"
+        className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-semibold text-slate-700 shadow-sm"
       >
         <div className="flex items-center gap-2 min-w-0">
           {selected?.icon && (

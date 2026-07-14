@@ -28,8 +28,18 @@ class VoucherService
      * and GB are deducted. A failure anywhere rolls the whole thing back, so
      * we can never leave orphaned credentials or a double-spent balance.
      */
-    public function generate(User $actor, InternetPlan $plan, int $quantity, ?int $validityDays = null, ?string $note = null, ?float $customPrice = null, ?float $customBasePrice = null): Batch
-    {
+    public function generate(
+        User $actor,
+        InternetPlan $plan,
+        int $quantity,
+        ?int $validityDays = null,
+        ?string $note = null,
+        ?float $customPrice = null,
+        ?float $customBasePrice = null,
+        ?int $ownerId = null,
+        string $purchaseSource = 'gb',
+        ?string $customBatchCode = null
+    ): Batch {
         if ($quantity < 1 || $quantity > self::MAX_BATCH) {
             throw ValidationException::withMessages(['quantity' => 'Quantity must be between 1 and '.self::MAX_BATCH.'.']);
         }
@@ -37,31 +47,50 @@ class VoucherService
             throw ValidationException::withMessages(['plan_id' => 'Plan is not active.']);
         }
 
+        // Determine target user (owner)
+        $owner = $actor;
+        if ($ownerId && $ownerId !== $actor->id) {
+            $owner = User::findOrFail($ownerId);
+            if (!$actor->isAdmin() && $owner->parent_id !== $actor->id) {
+                throw ValidationException::withMessages(['owner_id' => 'Target user must be a direct downline user.']);
+            }
+        }
+
         $validity = $validityDays ?: (int) $plan->validity_days;
         $gbPer = (float) ($plan->data_gb ?? 0);
         $pricePer = $customPrice !== null ? (float) $customPrice : (float) $plan->selling_price;
         $basePricePer = $customBasePrice !== null ? (float) $customBasePrice : (float) ($plan->base_price ?? 0);
         $totalGb = $gbPer * $quantity;
-        $totalPrice = $pricePer * $quantity;
+        $totalCost = $basePricePer * $quantity;
 
         // Fail fast with a clear message before touching anything.
-        if ($totalGb > 0 && (float) $actor->gb_balance < $totalGb) {
-            throw ValidationException::withMessages(['gb' => "Not enough GB balance. Need {$totalGb} GB."]);
+        if ($purchaseSource === 'wallet') {
+            if ($totalCost > 0 && (float) $owner->wallet_balance < $totalCost) {
+                throw ValidationException::withMessages(['wallet' => "Not enough wallet balance. Need Rs. {$totalCost}."]);
+            }
+        } else {
+            if ($totalGb > 0 && (float) $owner->gb_balance < $totalGb) {
+                throw ValidationException::withMessages(['gb' => "Not enough GB balance. Need {$totalGb} GB."]);
+            }
         }
 
-        // Ownership from the actor's position in the hierarchy.
-        [$resellerId, $sellerId] = match ($actor->role) {
-            'seller' => [$actor->parent_id, $actor->id],
-            'reseller' => [$actor->id, null],
+        // Ownership from the target owner's position in the hierarchy.
+        [$resellerId, $sellerId] = match ($owner->role) {
+            'seller' => [$owner->parent_id, $owner->id],
+            'reseller' => [$owner->id, null],
             default => [null, null],
         };
 
-        return DB::transaction(function () use ($actor, $plan, $quantity, $validity, $gbPer, $pricePer, $basePricePer, $totalGb, $totalPrice, $resellerId, $sellerId, $note) {
+        return DB::transaction(function () use ($owner, $plan, $quantity, $validity, $gbPer, $pricePer, $basePricePer, $totalGb, $totalCost, $resellerId, $sellerId, $note, $purchaseSource, $customBatchCode) {
+            $bCode = $customBatchCode ?: $this->uniqueBatchCode();
+            if (Batch::where('batch_code', $bCode)->exists()) {
+                $bCode = $bCode . '-' . strtoupper(Str::random(4));
+            }
             $batch = Batch::create([
-                'batch_code' => $this->uniqueBatchCode(),
+                'batch_code' => $bCode,
                 'plan_id' => $plan->id,
                 'quantity' => $quantity,
-                'generated_by' => $actor->id,
+                'generated_by' => $owner->id,
             ]);
 
             $codes = $this->uniqueCodes($quantity);
@@ -75,7 +104,7 @@ class VoucherService
                 $voucherRows[] = [
                     'code' => $code, 'username' => $code, 'password' => $code,
                     'plan_id' => $plan->id, 'batch_id' => $batch->id,
-                    'owner_id' => $actor->id, 'reseller_id' => $resellerId, 'seller_id' => $sellerId,
+                    'owner_id' => $owner->id, 'reseller_id' => $resellerId, 'seller_id' => $sellerId,
                     'data_gb' => $gbPer ?: null, 'validity_days' => $validity, 'price' => $pricePer,
                     'base_price' => $basePricePer,
                     'status' => 'new', 'expires_at' => $expiresAt,
@@ -97,9 +126,15 @@ class VoucherService
                 DB::table('radreply')->insert($chunk);
             }
 
-            // Deduct only GB balance (row-locked, audited).
-            if ($totalGb > 0) {
-                $this->gb->deduct($actor, $totalGb, $batch->batch_code, $note ?? "Generated {$quantity} vouchers");
+            // Deduct balance (row-locked, audited).
+            if ($purchaseSource === 'wallet') {
+                if ($totalCost > 0) {
+                    $this->wallet->deduct($owner, $totalCost, $batch->batch_code, $note ?? "Generated {$quantity} vouchers via Wallet");
+                }
+            } else {
+                if ($totalGb > 0) {
+                    $this->gb->deduct($owner, $totalGb, $batch->batch_code, $note ?? "Generated {$quantity} vouchers via GB");
+                }
             }
 
             return $batch->fresh();

@@ -22,7 +22,7 @@ class PermissionMatrixTest extends TestCase
         $reseller = $this->makeUser('reseller', ['wallet_balance' => 1000, 'gb_balance' => 100]);
 
         // Seed default permission records
-        $this->seed();
+        (new \Database\Seeders\DatabaseSeeder())->run();
 
         // Initially ensure create_plan is disabled for resellers/sellers in this test
         SystemPermission::where('feature', 'create_plan')->update(['reseller' => false, 'seller' => false]);

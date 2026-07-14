@@ -191,9 +191,26 @@ class DashboardController extends Controller
         $today = Voucher::where('seller_id', $seller->id)->whereDate('created_at', now()->toDateString());
         $todaySales = Voucher::where('seller_id', $seller->id)->whereIn('status', ['sold', 'active', 'expired'])->whereDate('sold_at', now()->toDateString());
 
+        $vouchers = Voucher::where('seller_id', $seller->id)
+            ->whereIn('status', ['sold', 'active', 'expired'])
+            ->get();
+
+        $retailProfit = $vouchers->sum(function ($v) use ($seller) {
+            $cost = ($v->data_gb > 0) ? ($v->data_gb * (float)$seller->gb_rate) : (float)$v->base_price;
+            return (float)$v->price - $cost;
+        });
+
+        $voucherSales = $vouchers->sum('price');
+        $packagesCount = \App\Models\InternetPlan::where('created_by', $seller->id)->count();
+
         return [
             'role' => 'seller',
             'balances' => ['wallet' => $seller->wallet_balance, 'gb' => $seller->gb_balance, 'wallet_due' => $seller->wallet_due],
+            'counts' => [
+                'packages' => $packagesCount,
+            ],
+            'voucher_sales' => (float) $voucherSales,
+            'retail_profit' => (float) $retailProfit,
             'vouchers' => $this->voucherBreakdown(Voucher::where('seller_id', $seller->id)),
             'today' => [
                 'vouchers' => (clone $today)->count(),

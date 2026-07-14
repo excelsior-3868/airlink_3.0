@@ -112,6 +112,49 @@ class PlanController extends Controller
 
     private function validateData(Request $request, ?int $ignoreId = null): array
     {
+        $user = $request->user();
+        if ($user && !$user->isAdmin()) {
+            if (!\App\Models\SystemPermission::isAllowed('customize_plan_bandwidth', $user->role)) {
+                // If updating, verify they didn't change it. If creating, force defaults/null.
+                if ($ignoreId) {
+                    $original = InternetPlan::find($ignoreId);
+                    if ($original && ($request->has('bandwidth_id') && $request->input('bandwidth_id') != $original->bandwidth_id)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'bandwidth' => 'You do not have permission to customize bandwidth speed limits.'
+                        ]);
+                    }
+                } else {
+                    $request->merge(['bandwidth_id' => null, 'bandwidth' => null]);
+                }
+            }
+
+            if (!\App\Models\SystemPermission::isAllowed('customize_plan_data_limit', $user->role)) {
+                if ($ignoreId) {
+                    $original = InternetPlan::find($ignoreId);
+                    if ($original && ($request->has('data_gb') && $request->input('data_gb') != $original->data_gb)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'data_gb' => 'You do not have permission to customize data/volume limits.'
+                        ]);
+                    }
+                } else {
+                    $request->merge(['data_gb' => null]);
+                }
+            }
+
+            if (!\App\Models\SystemPermission::isAllowed('customize_plan_validity', $user->role)) {
+                if ($ignoreId) {
+                    $original = InternetPlan::find($ignoreId);
+                    if ($original && ($request->has('validity_days') && $request->input('validity_days') != $original->validity_days)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'validity_days' => 'You do not have permission to customize validity duration.'
+                        ]);
+                    }
+                } else {
+                    $request->merge(['validity_days' => 30]);
+                }
+            }
+        }
+
         $isHotspot = $request->input('type') === 'hotspot';
 
         return $request->validate([

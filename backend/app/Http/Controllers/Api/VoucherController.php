@@ -33,6 +33,9 @@ class VoucherController extends Controller
             'note' => ['nullable', 'string', 'max:255'],
             'custom_price' => ['nullable', 'numeric', 'min:0.00'],
             'custom_base_price' => ['nullable', 'numeric', 'min:0.00'],
+            'owner_id' => ['nullable', 'integer', 'exists:users,id'],
+            'purchase_source' => ['nullable', 'in:gb,wallet'],
+            'batch_code' => ['nullable', 'string', 'max:50'],
         ]);
 
         $plan = InternetPlan::findOrFail($data['plan_id']);
@@ -41,6 +44,9 @@ class VoucherController extends Controller
             $data['validity_days'] ?? null, $data['note'] ?? null,
             isset($data['custom_price']) ? (float) $data['custom_price'] : null,
             isset($data['custom_base_price']) ? (float) $data['custom_base_price'] : null,
+            $data['owner_id'] ?? null,
+            $data['purchase_source'] ?? 'gb',
+            $data['batch_code'] ?? null,
         );
 
         return $this->created([

@@ -55,6 +55,9 @@ class DatabaseSeeder extends Seeder
             ['feature' => 'delete_voucher', 'display_name' => 'Delete Voucher', 'category' => 'Voucher', 'description' => 'Completely delete and void generated vouchers', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
             ['feature' => 'reports', 'display_name' => 'Reports', 'category' => 'Reports', 'description' => 'View usage, sales summaries and packages statistics', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
             ['feature' => 'dashboard', 'display_name' => 'Dashboard', 'category' => 'Dashboard', 'description' => 'View statistics, balances and charts', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'customize_plan_bandwidth', 'display_name' => 'Customize Plan Bandwidth', 'category' => 'System', 'description' => 'Allow customizing plan bandwidth speed limit', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'customize_plan_data_limit', 'display_name' => 'Customize Plan Data Limit', 'category' => 'System', 'description' => 'Allow customizing plan data/GB quota limits', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'customize_plan_validity', 'display_name' => 'Customize Plan Validity', 'category' => 'System', 'description' => 'Allow customizing plan validity duration in days', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
         ];
 
         foreach ($perms as $p) {
