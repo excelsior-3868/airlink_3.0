@@ -1,18 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { BarChart3 } from 'lucide-react'
 import { api } from '../lib/api'
+import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { num, rs, date, statusPill } from '../lib/format'
 import { GlassCard, PageTitle, Pill, StatCard, EmptyState, Pagination, CustomSelect } from '../components/ui'
 
 export default function Reports() {
   const { user } = useAuth()
-  const [plans, setPlans] = useState<any[]>([])
-  const [resellers, setResellers] = useState<any[]>([])
-  const [sellers, setSellers] = useState<any[]>([])
-
-  const [summary, setSummary] = useState<any>(null)
   const [filters, setFilters] = useState<any>({
     from: '', to: '', status: '',
     plan_id: '', reseller_id: '', seller_id: '',
@@ -20,20 +16,14 @@ export default function Reports() {
   })
   const [drill, setDrill] = useState<{ plan: any; data: any; page: number } | null>(null)
 
-  const load = () => {
-    api.get('/reports/summary', { params: filters }).then((r) => setSummary(r.data.data))
-  }
+  const { data: plans = [] } = useQuery<any[]>('reports/plans', () => api.get('/plans').then((r) => r.data.data))
+  const { data: resellers = [] } = useQuery<any[]>('users/resellers', () => api.get('/users/resellers').then((r) => r.data.data.data), { enabled: user?.role === 'admin' })
+  const { data: sellers = [] } = useQuery<any[]>('users/sellers', () => api.get('/users/sellers').then((r) => r.data.data.data), { enabled: user?.role === 'admin' || user?.role === 'reseller' })
 
-  useEffect(() => {
-    load()
-    api.get('/plans').then((r) => setPlans(r.data.data))
-    if (user?.role === 'admin') {
-      api.get('/users/resellers').then((r) => setResellers(r.data.data.data))
-    }
-    if (user?.role === 'admin' || user?.role === 'reseller') {
-      api.get('/users/sellers').then((r) => setSellers(r.data.data.data))
-    }
-  }, [filters, user])
+  const { data: summary, refetch: load } = useQuery<any>(
+    `reports/summary?${JSON.stringify(filters)}`,
+    () => api.get('/reports/summary', { params: filters }).then((r) => r.data.data),
+  )
 
   const drillDown = (plan: any, pageNum = 1) => {
     api.get(`/reports/drill-down/${plan.id}`, { params: { ...filters, page: pageNum } })

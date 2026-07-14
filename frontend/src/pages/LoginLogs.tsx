@@ -1,24 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ShieldCheck, ShieldAlert, Search } from 'lucide-react'
 import { api } from '../lib/api'
+import { useQuery } from '../lib/cache'
 import { date } from '../lib/format'
 import { GlassCard, PageTitle, Pill, EmptyState, Pagination, CustomSelect } from '../components/ui'
 
 export default function LoginLogs() {
-  const [data, setData] = useState<any>(null)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [successFilter, setSuccessFilter] = useState('')
+  const [applied, setApplied] = useState('{}')
 
-  const load = () => {
+  const buildParams = () => {
     const params: any = { page }
     if (search) params.search = search
     if (successFilter !== '') params.successful = successFilter === '1' ? 1 : 0
-    api.get('/login-logs', { params }).then((r) => setData(r.data.data))
+    return params
   }
 
-  useEffect(() => { load() }, [page])
+  const { data } = useQuery<any>(
+    `login-logs?page=${page}&${applied}`,
+    () => api.get('/login-logs', { params: buildParams() }).then((r) => r.data.data),
+  )
 
   return (
     <div>
@@ -50,7 +54,7 @@ export default function LoginLogs() {
             <Search size={15} className="absolute right-3 top-3 text-muted-foreground" />
           </div>
         </div>
-        <button className="btn-primary" onClick={() => { setPage(1); load() }}>Apply</button>
+        <button className="btn-primary" onClick={() => { setPage(1); setApplied(JSON.stringify({ search, successFilter })) }}>Apply</button>
       </GlassCard>
 
       <GlassCard className="!p-0 overflow-hidden">

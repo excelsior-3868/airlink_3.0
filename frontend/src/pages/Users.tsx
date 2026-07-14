@@ -2,15 +2,14 @@ import { useEffect, useState, Fragment } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api, apiError } from '../lib/api'
+import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, gb, date, datet } from '../lib/format'
 import { GlassCard, PageTitle, Modal, Pill, Pagination, EmptyState, Spinner } from '../components/ui'
 
 export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const { user, refresh } = useAuth()
-  const [data, setData] = useState<any>(null)
   const [page, setPage] = useState(1)
-  const [resellers, setResellers] = useState<any[]>([])
 
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
@@ -116,16 +115,24 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
 
   const label = role === 'reseller' ? 'Reseller' : 'Seller'
 
+  const { data, refetch } = useQuery<any>(
+    `users?role=${role}&page=${page}`,
+    () => api.get('/users', { params: { role, page } }).then((r) => r.data.data),
+  )
+  const { data: resellers = [] } = useQuery<any[]>(
+    'users?role=reseller&per_page=100',
+    () => api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => r.data.data.data),
+    { enabled: role === 'seller' && user?.role === 'admin' },
+  )
+
+  // Refresh this list plus balances/dashboard that a fund/status change affects.
   const load = () => {
-    api.get('/users', { params: { role, page } }).then((r) => setData(r.data.data))
+    refetch()
+    invalidateCache('users'); invalidateCache('dashboard'); invalidateCache('wallet'); invalidateCache('gb')
   }
 
-  useEffect(() => {
-    load()
-    if (role === 'seller' && user?.role === 'admin') {
-      api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setResellers(r.data.data.data))
-    }
-  }, [role, page])
+  useEffect(() => { setPage(1) }, [role])
+  useEffect(() => { setExpandedUserId(null); setHistoryData([]) }, [role, page])
 
   const openEditRate = (u: any) => {
     setRateUser(u)

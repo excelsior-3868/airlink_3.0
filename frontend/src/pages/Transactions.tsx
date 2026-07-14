@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../lib/api'
+import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, gb, datet } from '../lib/format'
 import { GlassCard, PageTitle, Pagination, Pill, EmptyState, Spinner } from '../components/ui'
@@ -43,17 +44,13 @@ const amountText = (t: any) => (t.unit === 'gb' ? gb(t.amount) : rs(t.amount))
 
 export default function Transactions() {
   const { user } = useAuth()
-  const [data, setData] = useState<any>(null)
   const [page, setPage] = useState(1)
   const [source, setSource] = useState<Source>('')
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    setLoading(true)
-    api.get('/transactions', { params: { page, source: source || undefined } })
-      .then((r) => setData(r.data.data))
-      .finally(() => setLoading(false))
-  }, [page, source])
+  const { data, loading } = useQuery(
+    `transactions?page=${page}&source=${source}`,
+    () => api.get('/transactions', { params: { page, source: source || undefined } }).then((r) => r.data.data),
+  )
 
   const subtitle = user?.role === 'admin'
     ? 'Complete ledger across all accounts'

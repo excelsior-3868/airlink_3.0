@@ -29,7 +29,10 @@ class GbService
         if ($paidAmount < 0) {
             throw ValidationException::withMessages(['paid_amount' => 'Paid amount cannot be negative.']);
         }
-        if ($to->parent_id !== $from->id) {
+        $isDirectChild = ($to->parent_id === $from->id);
+        $isAdminFundingSeller = ($from->role === 'admin' && $to->role === 'seller');
+
+        if (!$isDirectChild && !$isAdminFundingSeller) {
             throw ValidationException::withMessages(['user_id' => 'You can only allocate GB to your own direct downline.']);
         }
 

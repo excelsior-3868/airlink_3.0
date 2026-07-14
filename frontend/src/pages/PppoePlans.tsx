@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Package } from 'lucide-react'
 import { api, apiError } from '../lib/api'
+import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
 import { GlassCard, PageTitle, Modal, Pill, EmptyState } from '../components/ui'
@@ -11,8 +12,6 @@ const blank = { name: '', type: 'pppoe', plan_type: 'data', bandwidth_id: '', da
 export default function PppoePlans() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const [plans, setPlans] = useState<any[]>([])
-  const [bandwidths, setBandwidths] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<any>(blank)
   const [editId, setEditId] = useState<number | null>(null)
@@ -20,22 +19,11 @@ export default function PppoePlans() {
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<'my' | 'admin' | 'seller'>('my')
 
-  const load = async () => {
-    try {
-      const [rPlans, rBws] = await Promise.all([
-        api.get('/plans?type=pppoe'),
-        api.get('/bandwidths')
-      ])
-      setPlans(rPlans.data.data)
-      setBandwidths(rBws.data.data)
-    } catch (e) {
-      console.error(e)
-    }
-  }
+  const { data: plans = [], refetch: refetchPlans } = useQuery<any[]>('plans?type=pppoe', () => api.get('/plans?type=pppoe').then((r) => r.data.data))
+  const { data: bandwidths = [] } = useQuery<any[]>('bandwidths', () => api.get('/bandwidths').then((r) => r.data.data))
 
-  useEffect(() => {
-    load()
-  }, [])
+  // Refresh this page's plans and drop other cached plan lists after a change.
+  const load = () => { refetchPlans(); invalidateCache('plans'); invalidateCache('reports/plans') }
 
   const openNew = () => {
     setForm({ ...blank, bandwidth_id: bandwidths[0]?.id || '' })

@@ -17,9 +17,21 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\EnsureRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
         ]);
+
+        // API-only backend: never redirect unauthenticated users to a web `login`
+        // route (which doesn't exist). Returning null yields a clean 401 instead.
+        $middleware->redirectGuestsTo(fn (Request $request) => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );
+
+        // Unauthenticated API calls must return a clean 401 JSON, never a
+        // redirect to the (non-existent) web `login` route.
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+        });
     })->create();

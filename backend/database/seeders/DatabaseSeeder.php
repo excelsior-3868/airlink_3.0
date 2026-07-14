@@ -46,7 +46,8 @@ class DatabaseSeeder extends Seeder
 
         // 4. Seed default System Permissions matrix
         $perms = [
-            ['feature' => 'create_plan', 'display_name' => 'Create Plan', 'category' => 'System', 'description' => 'Define new internet plans and pricing', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'create_plan', 'display_name' => 'Create Plan', 'category' => 'System', 'description' => 'Define new internet plans and pricing from the Plans page', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'create_voucher_plan', 'display_name' => 'Create Plan (Voucher)', 'category' => 'Voucher', 'description' => 'Create a custom package inline while generating vouchers', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
             ['feature' => 'create_reseller', 'display_name' => 'Create Reseller', 'category' => 'User Management', 'description' => 'Register top-level resellers parented to admin', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
             ['feature' => 'create_seller', 'display_name' => 'Create Seller', 'category' => 'User Management', 'description' => 'Register retail seller accounts under a reseller', 'admin' => 1, 'reseller' => 1, 'seller' => 0],
             ['feature' => 'wallet_load', 'display_name' => 'Wallet Load', 'category' => 'Wallet', 'description' => 'Load monetary balance to downline user accounts', 'admin' => 1, 'reseller' => 1, 'seller' => 0],
@@ -58,13 +59,29 @@ class DatabaseSeeder extends Seeder
             ['feature' => 'customize_plan_bandwidth', 'display_name' => 'Customize Plan Bandwidth', 'category' => 'System', 'description' => 'Allow customizing plan bandwidth speed limit', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
             ['feature' => 'customize_plan_data_limit', 'display_name' => 'Customize Plan Data Limit', 'category' => 'System', 'description' => 'Allow customizing plan data/GB quota limits', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
             ['feature' => 'customize_plan_validity', 'display_name' => 'Customize Plan Validity', 'category' => 'System', 'description' => 'Allow customizing plan validity duration in days', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+
+            // Navigation / menu visibility. Controls whether the sidebar entry is shown
+            // for a role. Defaults mirror the previous hardcoded role rules.
+            ['feature' => 'view_plans', 'display_name' => 'Plans Menu', 'category' => 'Navigation', 'description' => 'Show the Plans menu (Hotspot, PPPOE, Bandwidth)', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'view_resellers', 'display_name' => 'Resellers Menu', 'category' => 'Navigation', 'description' => 'Show the Resellers management menu', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
+            ['feature' => 'view_sellers', 'display_name' => 'Sellers Menu', 'category' => 'Navigation', 'description' => 'Show the Sellers management menu', 'admin' => 1, 'reseller' => 1, 'seller' => 0],
+            ['feature' => 'view_transactions', 'display_name' => 'Transactions Menu', 'category' => 'Navigation', 'description' => 'Show the Transactions history menu', 'admin' => 1, 'reseller' => 1, 'seller' => 1],
+            ['feature' => 'view_settings', 'display_name' => 'Settings Menu', 'category' => 'Navigation', 'description' => 'Show the Settings menu (System Load, NAS, Permissions, Logs)', 'admin' => 1, 'reseller' => 0, 'seller' => 0],
         ];
 
         foreach ($perms as $p) {
-            \App\Models\SystemPermission::updateOrCreate(
-                ['feature' => $p['feature']],
-                $p
-            );
+            $existing = \App\Models\SystemPermission::where('feature', $p['feature'])->first();
+            if ($existing) {
+                // Preserve admin-configured role toggles across re-seeds (runs on every
+                // backend container start). Only refresh descriptive metadata.
+                $existing->update([
+                    'display_name' => $p['display_name'],
+                    'category' => $p['category'],
+                    'description' => $p['description'],
+                ]);
+            } else {
+                \App\Models\SystemPermission::create($p);
+            }
         }
     }
 }

@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react'
 import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle, Package } from 'lucide-react'
 import { api } from '../lib/api'
+import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, gb, num, date } from '../lib/format'
 import { StatCard, PageTitle, GlassCard, EmptyState, Modal, Spinner, VoucherStatCard } from '../components/ui'
 import { motion } from 'framer-motion'
-
-// Module-level cache so navigating away and back shows the dashboard instantly
-// while it refreshes in the background, instead of a full loading state.
-let dashboardCache: any = null
+import FundModal from '../components/FundModal'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [d, setD] = useState<any>(dashboardCache)
-  const [loading, setLoading] = useState(!dashboardCache)
+  const { data: d, loading, setData: setD } = useQuery<any>(
+    'dashboard',
+    () => api.get('/dashboard').then((r) => r.data.data),
+  )
 
   const [collectOpen, setCollectOpen] = useState(false)
+  const [quickFundOpen, setQuickFundOpen] = useState(false)
   const [downlines, setDownlines] = useState<any[]>([])
   const [collectForm, setCollectForm] = useState({ user_id: '', amount: '', note: '' })
   const [collectErr, setCollectErr] = useState('')
@@ -28,15 +29,12 @@ export default function Dashboard() {
     })
   }
 
+  // Load downline list once the dashboard data (with role) is available.
   useEffect(() => {
-    api.get('/dashboard').then((r) => {
-      dashboardCache = r.data.data
-      setD(r.data.data)
-      if (r.data.data.role === 'admin' || r.data.data.role === 'reseller') {
-        fetchDownlines(r.data.data)
-      }
-    }).finally(() => setLoading(false))
-  }, [])
+    if (d && (d.role === 'admin' || d.role === 'reseller')) {
+      fetchDownlines(d)
+    }
+  }, [d])
 
   const handleCollectPayment = async () => {
     setCollectBusy(true)
@@ -48,7 +46,6 @@ export default function Dashboard() {
         note: collectForm.note || undefined,
       })
       const r = await api.get('/dashboard')
-      dashboardCache = r.data.data
       setD(r.data.data)
       setCollectOpen(false)
       setCollectForm({ user_id: '', amount: '', note: '' })
@@ -67,6 +64,16 @@ export default function Dashboard() {
         title="Dashboard" 
         subtitle={`${d.role.charAt(0).toUpperCase() + d.role.slice(1)} account overview & billing metrics`} 
         icon={<LayoutDashboard size={22} className="text-blue-500" />} 
+        action={
+          (user?.role === 'admin' || user?.role === 'reseller') && (
+            <button
+              onClick={() => setQuickFundOpen(true)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <PlusCircle size={16} /> Quick Allocation
+            </button>
+          )
+        }
       />
 
       {/* Admin Dashboard */}
@@ -339,6 +346,19 @@ export default function Dashboard() {
           </div>
         </div>
       </Modal>
+
+      <FundModal
+        open={quickFundOpen}
+        onClose={() => setQuickFundOpen(false)}
+        onSuccess={() => {
+          api.get('/dashboard').then((r) => {
+            setD(r.data.data)
+            if (r.data.data.role === 'admin' || r.data.data.role === 'reseller') {
+              fetchDownlines(r.data.data)
+            }
+          })
+        }}
+      />
     </div>
   )
 }

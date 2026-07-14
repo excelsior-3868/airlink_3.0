@@ -15,36 +15,40 @@ interface NavItem {
   icon: any;
   roles: Role[];
   color: string;
-  children?: { to: string; label: string; roles: Role[]; icon: any; color: string }[];
+  perm?: string;
+  children?: { to: string; label: string; roles: Role[]; icon: any; color: string; perm?: string }[];
 }
 
 const NAV: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500' },
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'dashboard' },
   {
     label: 'Plan',
     icon: Package,
     roles: ['admin', 'reseller', 'seller'],
     color: 'text-indigo-500',
+    perm: 'view_plans',
     children: [
       { to: '/plans/hotspot', label: 'Hotspot Plans', roles: ['admin', 'reseller', 'seller'], icon: Wifi, color: 'text-sky-500' },
       { to: '/plans/pppoe', label: 'PPPOE Plans', roles: ['admin', 'reseller', 'seller'], icon: Router, color: 'text-indigo-500' },
       { to: '/plans/bandwidth', label: 'Bandwidth Plan', roles: ['admin', 'reseller', 'seller'], icon: Gauge, color: 'text-violet-500' },
     ]
   },
-  { to: '/resellers', label: 'Resellers', icon: Users2, roles: ['admin'], color: 'text-purple-500' },
-  { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500' },
-  { to: '/wallet', label: 'Wallet', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500' },
-  { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500' },
-  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500' },
-  { to: '/vouchers', label: 'Vouchers', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500' },
-  { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500' },
+  { to: '/resellers', label: 'Resellers', icon: Users2, roles: ['admin'], color: 'text-purple-500', perm: 'view_resellers' },
+  { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500', perm: 'view_sellers' },
+  { to: '/wallet', label: 'Wallet Allocation', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500', perm: 'wallet_load' },
+  { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500', perm: 'allocate_gb' },
+  { to: '/vouchers', label: 'Generate Vouchers', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
+  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'view_transactions' },
+  { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500', perm: 'reports' },
   {
     label: 'Settings',
     icon: Shield,
     roles: ['admin'],
     color: 'text-slate-500',
+    perm: 'view_settings',
     children: [
       { to: '/settings/system-load', label: 'System Load', roles: ['admin'], icon: WalletIcon, color: 'text-emerald-500' },
+      { to: '/settings/voucher-card', label: 'Voucher Card', roles: ['admin'], icon: Ticket, color: 'text-rose-500' },
       { to: '/nas', label: 'NAS / Routers', roles: ['admin'], icon: Router, color: 'text-violet-500' },
       { to: '/permissions', label: 'Permissions', roles: ['admin'], icon: ShieldCheck, color: 'text-rose-600' },
       { to: '/logs', label: 'Login Logs', roles: ['admin'], icon: ShieldCheck, color: 'text-pink-500' },
@@ -53,7 +57,7 @@ const NAV: NavItem[] = [
 ]
 
 export default function AppShell() {
-  const { user, logout } = useAuth()
+  const { user, logout, can } = useAuth()
   const nav = useNavigate()
   const location = useLocation()
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
@@ -80,7 +84,11 @@ export default function AppShell() {
   }, [])
 
   if (!user) return null
-  const items = NAV.filter((n) => n.roles.includes(user.role))
+  const items = NAV
+    // Hide items the role can't access OR the permission matrix has switched off.
+    .filter((n) => n.roles.includes(user.role) && can(n.perm))
+    // Drop parents whose children are all hidden by role/permission.
+    .filter((n) => !n.children || n.children.some((c) => c.roles.includes(user.role) && can(c.perm)))
 
   const doLogout = async () => {
     await logout()
@@ -120,7 +128,7 @@ export default function AppShell() {
                   {expanded[it.label] && (
                     <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
                       {it.children
-                        .filter((c) => c.roles.includes(user.role))
+                        .filter((c) => c.roles.includes(user.role) && can(c.perm))
                         .map((c) => (
                           <NavLink
                             key={c.to}

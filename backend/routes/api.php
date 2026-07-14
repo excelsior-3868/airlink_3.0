@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\BatchController;
 use App\Http\Controllers\Api\LoginLogController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\PermissionController;
+use App\Http\Controllers\Api\VoucherTemplateController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\TransactionController;
 use Illuminate\Support\Facades\Route;
@@ -31,7 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Plans — read for all, writes gated by permission.
     Route::get('/plans', [PlanController::class, 'index']);
     Route::get('/plans/{plan}', [PlanController::class, 'show']);
-    Route::post('/plans', [PlanController::class, 'store'])->middleware('permission:create_plan');
+    // Permission checked inside store(): create_plan (Plans page) vs create_voucher_plan (voucher inline).
+    Route::post('/plans', [PlanController::class, 'store']);
     Route::put('/plans/{plan}', [PlanController::class, 'update'])->middleware('permission:create_plan');
     Route::delete('/plans/{plan}', [PlanController::class, 'destroy'])->middleware('permission:create_plan');
 
@@ -89,6 +91,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // System Permissions Configuration Matrix
     Route::get('/permissions', [PermissionController::class, 'index']);
     Route::post('/permissions', [PermissionController::class, 'update'])->middleware('role:admin');
+
+    // Voucher card design template — read for previews, save is admin only.
+    Route::get('/voucher-template', [VoucherTemplateController::class, 'index']);
+    Route::post('/voucher-template', [VoucherTemplateController::class, 'save'])->middleware('role:admin');
 
     // NAS / router management (admin only). List is readable by all authed users.
     Route::get('/nas', [NasController::class, 'index']);

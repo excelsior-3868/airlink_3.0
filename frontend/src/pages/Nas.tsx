@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Router, Server, Activity, ShieldCheck, ShieldAlert, Wifi, Eye, EyeOff } from 'lucide-react'
 import { api, apiError } from '../lib/api'
+import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { GlassCard, PageTitle, Modal, Pill, EmptyState, CustomSelect, Pagination } from '../components/ui'
 import { num } from '../lib/format'
@@ -14,7 +15,6 @@ export default function Nas() {
   const [activeTab, setActiveTab] = useState<'nas' | 'radius'>('nas')
 
   // NAS state
-  const [rows, setRows] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<any>(blank)
   const [editId, setEditId] = useState<number | null>(null)
@@ -44,7 +44,7 @@ export default function Nas() {
   const [clients, setClients] = useState<any[]>([])
   const [clientsLoading, setClientsLoading] = useState(false)
 
-  const load = () => api.get('/nas').then((r) => setRows(r.data.data))
+  const { data: rows = [], refetch: load } = useQuery<any[]>('nas', () => api.get('/nas').then((r) => r.data.data))
   
   const loadRadiusStatus = () => {
     setRadiusLoading(true)

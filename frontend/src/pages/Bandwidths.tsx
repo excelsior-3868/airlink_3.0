@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Edit3, Trash2, Search, Package } from 'lucide-react'
 import { api, apiError } from '../lib/api'
+import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { GlassCard, PageTitle, Modal, EmptyState } from '../components/ui'
 
@@ -10,7 +11,6 @@ const blank = { name: '', rate_down: 1, rate_down_unit: 'Mbps', rate_up: 1, rate
 export default function Bandwidths() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
-  const [bandwidths, setBandwidths] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<any>(blank)
   const [editId, setEditId] = useState<number | null>(null)
@@ -19,15 +19,12 @@ export default function Bandwidths() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
 
-  const load = () => {
-    api.get(`/bandwidths?search=${query}`).then((r) => {
-      setBandwidths(r.data.data)
-    })
-  }
-
-  useEffect(() => {
-    load()
-  }, [query])
+  const { data: bandwidths = [], refetch } = useQuery<any[]>(
+    `bandwidths?search=${query}`,
+    () => api.get(`/bandwidths?search=${query}`).then((r) => r.data.data),
+  )
+  // Refetch current view and drop the shared 'bandwidths' list used elsewhere.
+  const load = () => { refetch(); invalidateCache('bandwidths') }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()

@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { ReactNode, useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle } from 'lucide-react'
+import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search } from 'lucide-react'
 
 export function GlassCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`glass-card p-5 sm:p-6 ${className}`}>{children}</div>
@@ -159,7 +159,23 @@ export function Pagination({ meta, onPage }: { meta: any; onPage: (p: number) =>
   )
 }
 
-export function Modal({ open, onClose, title, subtitle, icon, children }: { open: boolean; onClose: () => void; title: string; subtitle?: string; icon?: ReactNode; children: ReactNode }) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  icon,
+  children,
+  bodyClassName = 'overflow-y-auto max-h-[calc(85vh-8rem)]'
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string;
+  icon?: ReactNode;
+  children: ReactNode;
+  bodyClassName?: string;
+}) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-sm animate-fade-in" onClick={onClose}>
@@ -167,11 +183,11 @@ export function Modal({ open, onClose, title, subtitle, icon, children }: { open
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="bg-white w-full max-w-2xl rounded-[28px] relative shadow-2xl border border-slate-100 flex flex-col overflow-hidden"
+        className="bg-white w-full max-w-2xl rounded-[28px] relative shadow-2xl border border-slate-100 flex flex-col overflow-visible"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-white select-none">
+        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-white rounded-t-[28px] select-none">
           <div className="flex items-center gap-3.5 min-w-0">
             {icon && (
               <div className="bg-blue-50 text-[#003164] p-3 rounded-2xl shrink-0 border border-blue-100/50 flex items-center justify-center shadow-sm">
@@ -193,7 +209,7 @@ export function Modal({ open, onClose, title, subtitle, icon, children }: { open
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 overflow-y-auto max-h-[calc(85vh-8rem)]">
+        <div className={`p-6 sm:p-8 ${bodyClassName}`}>
           {children}
         </div>
       </motion.div>
@@ -226,7 +242,8 @@ export function CustomSelect({
   options,
   placeholder = 'Select option...',
   className = '',
-  disabled = false
+  disabled = false,
+  searchable = false
 }: {
   value: any;
   onChange: (val: any) => void;
@@ -234,9 +251,12 @@ export function CustomSelect({
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -247,6 +267,14 @@ export function CustomSelect({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!open) {
+      setSearchQuery('')
+    } else if (searchable) {
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [open, searchable])
 
   const getStatusDetails = (val: any, originalLabel: string) => {
     const s = String(val).toLowerCase();
@@ -285,6 +313,12 @@ export function CustomSelect({
     };
   });
 
+  const filteredOptions = resolvedOptions.filter((o) => {
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return String(o.label).toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)
+  })
+
   const selected = resolvedOptions.find((o) => o.value === value)
 
   return (
@@ -312,40 +346,59 @@ export function CustomSelect({
 
       {/* Options Dropdown list */}
       {open && (
-        <div className="absolute left-0 mt-1.5 w-full min-w-[200px] bg-white border border-slate-200/80 rounded-2xl shadow-xl p-1.5 z-50 flex flex-col gap-0.5 max-h-60 overflow-y-auto">
-          {resolvedOptions.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={String(opt.value)}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-                className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-left ${
-                  isSelected ? 'bg-slate-50/50 text-[#003164]' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {opt.icon && (
-                    <div className="shrink-0 flex items-center justify-center">
-                      {opt.icon}
-                    </div>
-                  )}
-                  <span className="truncate">{opt.label}</span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {opt.badge}
-                  {isSelected && (
-                    <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                      <Check size={12} className="text-[#003164]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+        <div className="absolute left-0 mt-1.5 w-full min-w-[200px] bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 flex flex-col overflow-hidden">
+          {searchable && (
+            <div className="p-2.5 border-b border-slate-100 bg-white z-10 flex items-center gap-1.5 shrink-0">
+              <Search size={14} className="text-slate-400 shrink-0 ml-1.5" />
+              <input
+                ref={inputRef}
+                type="text"
+                className="w-full bg-transparent border-0 outline-none text-xs text-slate-700 py-1"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          <div className="flex-1 p-1.5 flex flex-col gap-0.5 max-h-52 overflow-y-auto">
+            {filteredOptions.map((opt) => {
+              const isSelected = opt.value === value
+              return (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value)
+                    setOpen(false)
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-left ${
+                    isSelected ? 'bg-slate-50/50 text-[#003164]' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {opt.icon && (
+                      <div className="shrink-0 flex items-center justify-center">
+                        {opt.icon}
+                      </div>
+                    )}
+                    <span className="truncate">{opt.label}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {opt.badge}
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                        <Check size={12} className="text-[#003164]" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+            {filteredOptions.length === 0 && (
+              <div className="text-xs text-slate-400 py-4 text-center">No matches found</div>
+            )}
+          </div>
         </div>
       )}
     </div>

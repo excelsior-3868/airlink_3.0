@@ -1,26 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../lib/api'
+import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { gb, datet } from '../lib/format'
 import { GlassCard, PageTitle, Pagination, Pill, StatCard, EmptyState } from '../components/ui'
-import { Database } from 'lucide-react'
+import { Database, PlusCircle } from 'lucide-react'
+import FundModal from '../components/FundModal'
 
 const tone: Record<string, string> = { allocate: 'success', deduct: 'danger', refund: 'info', opening: 'secondary' }
 
 export default function Gb() {
   const { user, refresh } = useAuth()
-  const [data, setData] = useState<any>(null)
   const [page, setPage] = useState(1)
-  
+  const [fundOpen, setFundOpen] = useState(false)
+
   // Redeem state
   const [redeemCode, setRedeemCode] = useState('')
   const [redeeming, setRedeeming] = useState(false)
   const [message, setMessage] = useState('')
   const [err, setErr] = useState('')
 
-  const load = () => api.get('/gb/transactions', { params: { page } }).then((r) => setData(r.data.data))
-  useEffect(() => { load() }, [page])
+  const { data, refetch } = useQuery(
+    `gb/transactions?page=${page}`,
+    () => api.get('/gb/transactions', { params: { page } }).then((r) => r.data.data),
+  )
+  const loadData = refetch
 
   const handleRedeem = async () => {
     setRedeeming(true); setErr(''); setMessage('')
@@ -29,7 +34,8 @@ export default function Gb() {
       setMessage(res.message)
       setRedeemCode('')
       refresh() // Update user context balances
-      load() // Reload transaction log
+      loadData() // Reload transaction log
+      invalidateCache('dashboard'); invalidateCache('vouchers')
     } catch (e: any) {
       setErr(e.response?.data?.message || 'Failed to redeem voucher.')
     } finally {
@@ -39,7 +45,21 @@ export default function Gb() {
 
   return (
     <div>
-      <PageTitle title="GB Allocation" subtitle="Data quota balance & transactions" icon={<Database size={22} className="text-cyan-500" />} />
+      <PageTitle 
+        title="GB Allocation" 
+        subtitle="Data quota balance & transactions" 
+        icon={<Database size={22} className="text-cyan-500" />} 
+        action={
+          (user?.role === 'admin' || user?.role === 'reseller') && (
+            <button
+              onClick={() => setFundOpen(true)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <PlusCircle size={16} /> Allocate GB
+            </button>
+          )
+        }
+      />
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
         <StatCard label="Current GB Balance" value={gb(user!.gb_balance)} icon={<Database size={22} />} />
         
@@ -93,6 +113,12 @@ export default function Gb() {
         <div className="p-4"><Pagination meta={data} onPage={setPage} /></div>
       </GlassCard>
       <p className="text-xs text-muted-foreground mt-3">Allocate GB to your downline from the Resellers / Sellers page.</p>
+
+      <FundModal
+        open={fundOpen}
+        onClose={() => setFundOpen(false)}
+        onSuccess={() => { refetch(); invalidateCache('dashboard') }}
+      />
     </div>
   )
 }

@@ -14,6 +14,7 @@ export interface AuthUser {
   gb_balance: string
   status: string
   must_reset_password: boolean
+  permissions: Record<string, boolean>
 }
 
 interface AuthState {
@@ -22,6 +23,7 @@ interface AuthState {
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<void>
+  can: (feature?: string) => boolean
 }
 
 const AuthContext = createContext<AuthState>(null as any)
@@ -66,7 +68,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthContext.Provider>
+  // Feature-level gate driven by the server permission matrix. No feature => always
+  // allowed. If permissions are missing (legacy token), fall back to allowed so the
+  // menu still renders and role checks remain the effective guard.
+  const can = (feature?: string) => {
+    if (!feature) return true
+    if (!user?.permissions) return true
+    return user.permissions[feature] === true
+  }
+
+  return <AuthContext.Provider value={{ user, loading, login, logout, refresh, can }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => useContext(AuthContext)

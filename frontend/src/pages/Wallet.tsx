@@ -1,23 +1,42 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../lib/api'
+import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, datet } from '../lib/format'
 import { GlassCard, PageTitle, Pagination, Pill, StatCard, EmptyState } from '../components/ui'
-import { Wallet as WalletIcon } from 'lucide-react'
+import { Wallet as WalletIcon, PlusCircle } from 'lucide-react'
+import FundModal from '../components/FundModal'
 
 const tone: Record<string, string> = { load: 'success', transfer: 'warning', deduct: 'danger', refund: 'info', opening: 'secondary' }
 
 export default function Wallet() {
   const { user } = useAuth()
-  const [data, setData] = useState<any>(null)
   const [page, setPage] = useState(1)
+  const [fundOpen, setFundOpen] = useState(false)
 
-  useEffect(() => { api.get('/wallet/transactions', { params: { page } }).then((r) => setData(r.data.data)) }, [page])
+  const { data, refetch } = useQuery(
+    `wallet/transactions?page=${page}`,
+    () => api.get('/wallet/transactions', { params: { page } }).then((r) => r.data.data),
+  )
 
   return (
     <div>
-      <PageTitle title="Wallet" subtitle="Money balance & transactions" icon={<WalletIcon size={22} className="text-emerald-500" />} />
+      <PageTitle 
+        title="Wallet" 
+        subtitle="Money balance & transactions" 
+        icon={<WalletIcon size={22} className="text-emerald-500" />} 
+        action={
+          (user?.role === 'admin' || user?.role === 'reseller') && (
+            <button
+              onClick={() => setFundOpen(true)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <PlusCircle size={16} /> Fund Downline
+            </button>
+          )
+        }
+      />
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
         <StatCard label="Current Balance" value={rs(user!.wallet_balance)} icon={<WalletIcon size={22} />} />
       </div>
@@ -44,6 +63,12 @@ export default function Wallet() {
         <div className="p-4"><Pagination meta={data} onPage={setPage} /></div>
       </GlassCard>
       <p className="text-xs text-muted-foreground mt-3">Load funds to your downline from the Resellers / Sellers page.</p>
+
+      <FundModal
+        open={fundOpen}
+        onClose={() => setFundOpen(false)}
+        onSuccess={() => { refetch(); invalidateCache('dashboard') }}
+      />
     </div>
   )
 }

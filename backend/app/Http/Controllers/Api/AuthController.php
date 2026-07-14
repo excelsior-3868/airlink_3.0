@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\LoginLog;
+use App\Models\SystemPermission;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -94,6 +95,18 @@ class AuthController extends Controller
             'gb_balance' => $user->gb_balance,
             'status' => $user->status,
             'must_reset_password' => $user->must_reset_password,
+            'permissions' => $this->permissionsFor($user),
         ];
+    }
+
+    /**
+     * Effective permission map for the user's role: feature => bool.
+     * Drives frontend menu/route visibility so the UI matches server-side gating.
+     */
+    private function permissionsFor(User $user): array
+    {
+        return SystemPermission::all()
+            ->mapWithKeys(fn (SystemPermission $p) => [$p->feature => (bool) $p->getAttribute($user->role)])
+            ->all();
     }
 }

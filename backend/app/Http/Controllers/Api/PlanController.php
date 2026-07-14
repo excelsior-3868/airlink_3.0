@@ -22,21 +22,25 @@ class PlanController extends Controller
 
         $actor = $request->user();
         if ($actor && !$actor->isAdmin()) {
-            $adminIds = \App\Models\User::where('role', 'admin')->pluck('id')->toArray();
             if ($actor->isReseller()) {
-                $sellerIds = \App\Models\User::where('parent_id', $actor->id)->pluck('id')->toArray();
-                $query->where(function ($q) use ($actor, $adminIds, $sellerIds) {
+                $query->where(function ($q) use ($actor) {
                     $q->whereNull('created_by')
-                      ->orWhereIn('created_by', $adminIds)
                       ->orWhere('created_by', $actor->id)
-                      ->orWhereIn('created_by', $sellerIds);
+                      ->orWhereIn('created_by', function ($sub) {
+                          $sub->select('id')->from('users')->where('role', 'admin');
+                      })
+                      ->orWhereIn('created_by', function ($sub) use ($actor) {
+                          $sub->select('id')->from('users')->where('parent_id', $actor->id);
+                      });
                 });
             } else if ($actor->isSeller()) {
-                $query->where(function ($q) use ($actor, $adminIds) {
+                $query->where(function ($q) use ($actor) {
                     $q->whereNull('created_by')
-                      ->orWhereIn('created_by', $adminIds)
+                      ->orWhere('created_by', $actor->id)
                       ->orWhere('created_by', $actor->parent_id)
-                      ->orWhere('created_by', $actor->id);
+                      ->orWhereIn('created_by', function ($sub) {
+                          $sub->select('id')->from('users')->where('role', 'admin');
+                      });
                 });
             }
         }
@@ -52,6 +56,13 @@ class PlanController extends Controller
     /** Create — admin, reseller, and seller. */
     public function store(Request $request): JsonResponse
     {
+        // Inline custom packages built during voucher generation are gated separately
+        // from plans created on the Plans page.
+        $feature = $request->boolean('via_voucher') ? 'create_voucher_plan' : 'create_plan';
+        if (! \App\Models\SystemPermission::isAllowed($feature, $request->user()->role)) {
+            return $this->fail("This action is not permitted for your role: access to '{$feature}' is restricted by system policy.", 403);
+        }
+
         $data = $this->validateData($request);
         if ($request->input('type') === 'hotspot') {
             $data['base_price'] = $data['base_price'] ?? 0;

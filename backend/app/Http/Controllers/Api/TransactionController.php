@@ -19,17 +19,23 @@ class TransactionController extends Controller
     public function index(Request $request): JsonResponse
     {
         $actor = $request->user();
-        $visibleIds = User::query()->visibleTo($actor)->pluck('id')->all();
-
-        // Optional drill-down to a single user (must be within the actor's scope).
         $userId = $request->input('user_id');
+        $isAdmin = $actor->isAdmin();
+        $scopeIds = null;
+
         if ($userId) {
-            if (! in_array((int) $userId, $visibleIds)) {
-                return $this->fail('Unauthorized access to user transaction history.', 403);
+            $userId = (int) $userId;
+            if (!$isAdmin) {
+                $visibleIds = User::query()->visibleTo($actor)->pluck('id')->all();
+                if (! in_array($userId, $visibleIds)) {
+                    return $this->fail('Unauthorized access to user transaction history.', 403);
+                }
             }
-            $scopeIds = [(int) $userId];
+            $scopeIds = [$userId];
         } else {
-            $scopeIds = $visibleIds;
+            if (!$isAdmin) {
+                $scopeIds = User::query()->visibleTo($actor)->pluck('id')->all();
+            }
         }
 
         $source = $request->input('source'); // wallet | gb | invoice | payment | null (all)
@@ -37,27 +43,39 @@ class TransactionController extends Controller
         $parts = [];
 
         if (! $source || $source === 'wallet') {
-            $parts[] = DB::table('wallet_transactions')
-                ->selectRaw("'wallet' as source, id as source_id, type as txn_type, amount, 'rs' as unit, balance_after, user_id as account_id, from_user_id, to_user_id, reference, note, NULL as status, created_at")
-                ->whereIn('user_id', $scopeIds);
+            $q = DB::table('wallet_transactions')
+                ->selectRaw("'wallet' as source, id as source_id, type as txn_type, amount, 'rs' as unit, balance_after, user_id as account_id, from_user_id, to_user_id, reference, note, NULL as status, created_at");
+            if ($scopeIds !== null) {
+                $q->whereIn('user_id', $scopeIds);
+            }
+            $parts[] = $q;
         }
 
         if (! $source || $source === 'gb') {
-            $parts[] = DB::table('gb_transactions')
-                ->selectRaw("'gb' as source, id as source_id, type as txn_type, gb_amount as amount, 'gb' as unit, balance_after, user_id as account_id, from_user_id, to_user_id, reference, note, NULL as status, created_at")
-                ->whereIn('user_id', $scopeIds);
+            $q = DB::table('gb_transactions')
+                ->selectRaw("'gb' as source, id as source_id, type as txn_type, gb_amount as amount, 'gb' as unit, balance_after, user_id as account_id, from_user_id, to_user_id, reference, note, NULL as status, created_at");
+            if ($scopeIds !== null) {
+                $q->whereIn('user_id', $scopeIds);
+            }
+            $parts[] = $q;
         }
 
         if (! $source || $source === 'invoice') {
-            $parts[] = DB::table('invoices')
-                ->selectRaw("'invoice' as source, id as source_id, status as txn_type, total_amount as amount, 'rs' as unit, NULL as balance_after, receiver_id as account_id, sender_id as from_user_id, receiver_id as to_user_id, invoice_number as reference, NULL as note, status, created_at")
-                ->where(fn ($q) => $q->whereIn('sender_id', $scopeIds)->orWhereIn('receiver_id', $scopeIds));
+            $q = DB::table('invoices')
+                ->selectRaw("'invoice' as source, id as source_id, status as txn_type, total_amount as amount, 'rs' as unit, NULL as balance_after, receiver_id as account_id, sender_id as from_user_id, receiver_id as to_user_id, invoice_number as reference, NULL as note, status, created_at");
+            if ($scopeIds !== null) {
+                $q->where(fn ($sub) => $sub->whereIn('sender_id', $scopeIds)->orWhereIn('receiver_id', $scopeIds));
+            }
+            $parts[] = $q;
         }
 
         if (! $source || $source === 'payment') {
-            $parts[] = DB::table('payments')
-                ->selectRaw("'payment' as source, id as source_id, 'payment' as txn_type, amount, 'rs' as unit, NULL as balance_after, sender_id as account_id, sender_id as from_user_id, receiver_id as to_user_id, NULL as reference, note, NULL as status, payment_date as created_at")
-                ->where(fn ($q) => $q->whereIn('sender_id', $scopeIds)->orWhereIn('receiver_id', $scopeIds));
+            $q = DB::table('payments')
+                ->selectRaw("'payment' as source, id as source_id, 'payment' as txn_type, amount, 'rs' as unit, NULL as balance_after, sender_id as account_id, sender_id as from_user_id, receiver_id as to_user_id, NULL as reference, note, NULL as status, payment_date as created_at");
+            if ($scopeIds !== null) {
+                $q->where(fn ($sub) => $sub->whereIn('sender_id', $scopeIds)->orWhereIn('receiver_id', $scopeIds));
+            }
+            $parts[] = $q;
         }
 
         if (empty($parts)) {
