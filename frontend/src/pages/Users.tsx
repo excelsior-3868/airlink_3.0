@@ -1,6 +1,6 @@
 import { useEffect, useState, Fragment } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, Percent, Coins, PlusCircle, Power } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -8,13 +8,16 @@ import { rs, gb, date, datet } from '../lib/format'
 import { GlassCard, PageTitle, Modal, Pill, Pagination, EmptyState, Spinner } from '../components/ui'
 
 export default function Users({ role }: { role: 'reseller' | 'seller' }) {
-  const { user, refresh } = useAuth()
+  const { user, refresh, can } = useAuth()
   const [page, setPage] = useState(1)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
   const [fundUser, setFundUser] = useState<any>(null)
   const [fund, setFund] = useState({ amount: '', gb_amount: '', gb_paid: '' })
+  const [collectUser, setCollectUser] = useState<any>(null)
+  const [collectAmount, setCollectAmount] = useState('')
+  const [collectNote, setCollectNote] = useState('')
   const [rateUser, setRateUser] = useState<any>(null)
   const [customRate, setCustomRate] = useState('')
   const [err, setErr] = useState('')
@@ -65,6 +68,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         note: t.status === 'due' && t.paid_amount > 0 ? `Paid: Rs ${t.paid_amount} · Due: Rs ${t.total_amount - t.paid_amount}` : null,
         amountLabel: rs(t.total_amount),
         amountColor: 'text-purple-600',
+        dueLabel: t.status !== 'paid' && (t.total_amount - (t.paid_amount || 0)) > 0 ? rs(t.total_amount - (t.paid_amount || 0)) : null,
         statusBadge: t.status.toUpperCase(),
         statusTone: t.status === 'paid' ? 'success' : 'danger',
         created_at: t.created_at,
@@ -190,8 +194,30 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         gb_amount: +fund.gb_amount,
         paid_amount: fund.gb_paid ? +fund.gb_paid : 0,
       })
-      setFundUser(null); setFund({ amount: '', gb_amount: '', gb_paid: '' }); load(); refresh()
+      setFundUser(null); setFund({ amount: '', gb_amount: '', gb_paid: '' }); setExpandedUserId(null); setHistoryData([]); load(); refresh()
     } catch (e) { setErr(apiError(e)) } finally { setBusy(false) }
+  }
+
+  const savePayment = async () => {
+    if (!collectUser) return
+    setBusy(true)
+    setErr('')
+    try {
+      await api.post('/billing/payments/collect', {
+        user_id: collectUser.id,
+        amount: +collectAmount,
+        note: collectNote || undefined
+      })
+      setCollectUser(null)
+      setCollectAmount('')
+      setCollectNote('')
+      load()
+      refresh()
+    } catch (e) {
+      setErr(apiError(e))
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -199,6 +225,31 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
       <PageTitle title={`${label}s`} subtitle={`Manage your ${label.toLowerCase()} network`}
         icon={role === 'reseller' ? <Users2 size={22} className="text-purple-500" /> : <Store size={22} className="text-amber-500" />}
         action={<motion.button whileTap={{ scale: 0.95 }} className="btn-primary flex items-center gap-2" onClick={() => { setErr(''); setCreateOpen(true) }}><Plus size={16} /> New {label}</motion.button>} />
+
+      {/* Action Guide / Legend */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3.5 px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs text-slate-500 shadow-sm">
+        <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Action Guide:</span>
+        {user?.role === 'admin' && (
+          <span className="flex items-center gap-1.5">
+            <span className="p-1 rounded-md bg-teal-50 text-teal-600 inline-flex"><Percent size={12} /></span>
+            <span>Edit GB Rate</span>
+          </span>
+        )}
+        {can('wallet_load') && (
+          <span className="flex items-center gap-1.5">
+            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600 inline-flex"><Coins size={12} /></span>
+            <span>Collect Payment</span>
+          </span>
+        )}
+        <span className="flex items-center gap-1.5">
+          <span className="p-1 rounded-md bg-slate-100 text-primary inline-flex"><PlusCircle size={12} /></span>
+          <span>Load Wallet/GB</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="p-1 rounded-md bg-rose-50 text-rose-500 inline-flex"><Power size={12} /></span>
+          <span>Enable/Disable</span>
+        </span>
+      </div>
 
       <GlassCard className="!p-0 overflow-hidden">
         <div className="overflow-x-auto">
@@ -236,13 +287,24 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                       <td>{rs(u.gb_rate)}/GB</td>
                       {role === 'reseller' && <td>{u.children_count ?? 0}</td>}
                       <td><Pill tone={u.status === 'active' ? 'success' : 'danger'}>{u.status === 'active' ? 'Active' : 'Disabled'}</Pill></td>
-                      <td className="text-right pr-6 whitespace-nowrap">
+                      <td className="text-right pr-6 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         {user?.role === 'admin' && (
-                          <button className="text-xs font-bold text-teal-600 hover:underline mr-3" onClick={(e) => { e.stopPropagation(); openEditRate(u); }}>Rate</button>
+                          <button className="text-teal-600 hover:text-teal-800 p-1.5 rounded-lg hover:bg-teal-50 transition-all inline-flex items-center justify-center mr-1" title="Rate" onClick={() => openEditRate(u)}>
+                            <Percent size={14} />
+                          </button>
                         )}
-                        <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={(e) => { e.stopPropagation(); setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>Fund</button>
-                        <button className="text-xs font-bold text-slate-500 hover:underline mr-3" onClick={(e) => { e.stopPropagation(); toggle(u); }}>{u.status === 'active' ? 'Disable' : 'Enable'}</button>
-                        <button className="text-xs font-bold text-slate-500 hover:text-primary inline-flex items-center gap-0.5" onClick={(e) => { e.stopPropagation(); toggleExpand(u); }}>
+                        {+u.wallet_due > 0 && can('wallet_load') && (
+                          <button className="text-emerald-600 hover:text-emerald-800 p-1.5 rounded-lg hover:bg-emerald-50 transition-all inline-flex items-center justify-center mr-1" title="Payment" onClick={() => { setCollectUser(u); setErr(''); setCollectAmount(''); setCollectNote(''); }}>
+                            <Coins size={14} />
+                          </button>
+                        )}
+                        <button className="text-primary hover:text-indigo-800 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center mr-1" title="Load Wallet/GB" onClick={() => { setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>
+                          <PlusCircle size={14} />
+                        </button>
+                        <button className={`${u.status === 'active' ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} p-1.5 rounded-lg transition-all inline-flex items-center justify-center mr-1`} title={u.status === 'active' ? 'Disable' : 'Enable'} onClick={() => toggle(u)}>
+                          <Power size={14} />
+                        </button>
+                        <button className="text-slate-500 hover:text-primary p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" onClick={() => toggleExpand(u)}>
                           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                         </button>
                       </td>
@@ -338,6 +400,11 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                                         <p className={`text-sm font-extrabold mt-1.5 ${t.amountColor}`}>
                                           {t.amountLabel}
                                         </p>
+                                        {t.dueLabel && (
+                                          <p className="text-[10px] font-bold text-rose-500 mt-0.5">
+                                            Due: {t.dueLabel}
+                                          </p>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -429,14 +496,12 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         </div>
       </Modal>
 
-      <Modal open={!!fundUser} onClose={() => setFundUser(null)} title={`Fund ${fundUser?.name || ''}`}>
+      <Modal open={!!fundUser} onClose={() => setFundUser(null)} title={`Load Wallet/GB — ${fundUser?.name || ''}`}>
         <div className="space-y-3">
-          {role !== 'reseller' && (
-            <div className="relative">
-              <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className="input pl-10" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
-            </div>
-          )}
+          <div className="relative">
+            <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input className="input pl-10" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
+          </div>
           <div className="relative">
             <Database size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-10" type="number" placeholder="GB amount" value={fund.gb_amount} onChange={(e) => setFund({ ...fund, gb_amount: e.target.value })} />
@@ -450,7 +515,10 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-500 font-semibold">Allocation cost</span>
-                  <span className="font-bold text-slate-800">{rs(total)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800">{rs(total)}</span>
+                    <span className="text-[10px] text-rose-500 font-semibold">Due: {rs(due)}</span>
+                  </div>
                   <span className="text-[10px] text-slate-400">@ {rs(fundUser?.gb_rate)}/GB</span>
                 </div>
                 <div className="relative">
@@ -475,16 +543,12 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           })()}
 
           <p className="text-xs text-muted-foreground">
-            {role === 'reseller' ? (
-              <>GB Wallet: {gb(user!.gb_balance)}</>
-            ) : (
-              <>Your balance: {rs(user!.wallet_balance)} · {gb(user!.gb_balance)}</>
-            )}
+            Your balance: {rs(user!.wallet_balance)} · {gb(user!.gb_balance)}
           </p>
           {err && <div className="pill danger w-full justify-center py-2">{err}</div>}
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-ghost" onClick={() => setFundUser(null)}>Cancel</button>
-            <motion.button whileTap={{ scale: 0.95 }} className="btn-primary" disabled={busy} onClick={saveFund}>{busy ? 'Processing…' : 'Fund'}</motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} className="btn-primary" disabled={busy} onClick={saveFund}>{busy ? 'Processing…' : 'Load'}</motion.button>
           </div>
         </div>
       </Modal>
@@ -506,6 +570,66 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-ghost" onClick={() => setRateUser(null)}>Cancel</button>
             <motion.button whileTap={{ scale: 0.95 }} className="btn-primary" disabled={busy} onClick={saveRate}>{busy ? 'Saving…' : 'Save Rate'}</motion.button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!collectUser} onClose={() => setCollectUser(null)} title={`Collect Payment — ${collectUser?.name || ''}`}>
+        <div className="space-y-4">
+          <div className="bg-slate-50/50 border border-slate-200/50 p-3 rounded-2xl text-xs flex justify-between items-center">
+            <div>
+              <p className="text-slate-400 font-semibold">Current Wallet Due:</p>
+              <p className="text-rose-600 font-extrabold text-sm mt-0.5">{rs(collectUser?.wallet_due)}</p>
+            </div>
+            {+collectAmount > 0 && (
+              <div className="text-right">
+                <p className="text-slate-400 font-semibold">Remaining Due:</p>
+                <p className="text-slate-800 font-bold mt-0.5">{rs(Math.max(+(collectUser?.wallet_due || 0) - +collectAmount, 0))}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5 flex items-center gap-1">
+              <Wallet size={14} className="text-emerald-500" />
+              Payment Amount (Rs)
+            </label>
+            <input
+              className="input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={collectUser?.wallet_due}
+              placeholder="e.g. 1000"
+              value={collectAmount}
+              onChange={(e) => setCollectAmount(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+              Note / Reference
+            </label>
+            <input
+              className="input"
+              placeholder="e.g. Cash collection"
+              value={collectNote}
+              onChange={(e) => setCollectNote(e.target.value)}
+            />
+          </div>
+
+          {err && <div className="pill danger w-full justify-center py-2">{err}</div>}
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button className="btn-ghost" onClick={() => setCollectUser(null)}>Cancel</button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn-primary"
+              disabled={busy || !collectAmount || +collectAmount <= 0}
+              onClick={savePayment}
+            >
+              {busy ? 'Processing…' : 'Collect'}
+            </motion.button>
           </div>
         </div>
       </Modal>

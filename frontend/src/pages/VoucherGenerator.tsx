@@ -126,10 +126,36 @@ export default function VoucherGenerator() {
     }
   }, [purchaseSource, gen.plan_id, plans])
 
+  const [progress, setProgress] = useState(0)
+  const [loadingAction, setLoadingAction] = useState(false)
+
   const openBlob = async (path: string, params?: any) => {
-    const res = await api.get(path, { params, responseType: 'blob' })
-    const url = URL.createObjectURL(res.data)
-    window.open(url, '_blank')
+    setLoadingAction(true)
+    setProgress(0)
+    
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) return 95
+        const increment = Math.floor(Math.random() * 8) + 3
+        return Math.min(95, prev + increment)
+      })
+    }, 150)
+
+    try {
+      const res = await api.get(path, { params, responseType: 'blob' })
+      clearInterval(interval)
+      setProgress(100)
+      
+      await new Promise((r) => setTimeout(r, 200))
+      
+      const url = URL.createObjectURL(res.data)
+      window.open(url, '_blank')
+    } catch (e) {
+      clearInterval(interval)
+      alert(apiError(e))
+    } finally {
+      setLoadingAction(false)
+    }
   }
 
   const generate = async () => {
@@ -482,6 +508,24 @@ export default function VoucherGenerator() {
           </div>
         )}
       </GlassCard>
+
+      {/* Progress Bar Overlay */}
+      {loadingAction && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/45 backdrop-blur-sm select-none">
+          <div className="bg-white p-6 rounded-[24px] shadow-2xl flex flex-col items-center gap-4 border border-slate-100 max-w-xs text-center w-80">
+            <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden relative">
+              <div 
+                className="absolute top-0 left-0 h-full bg-[#003164] rounded-full transition-all duration-150 ease-out" 
+                style={{ width: `${progress}%` }} 
+              />
+            </div>
+            <div className="mt-1">
+              <p className="text-sm font-extrabold text-slate-800">Generating Card Document ({progress}%)</p>
+              <p className="text-xs text-slate-400 font-semibold mt-1">Please wait a moment while we render your cards.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

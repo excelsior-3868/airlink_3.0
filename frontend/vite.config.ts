@@ -7,5 +7,6 @@ export default defineConfig({
     host: true,
     port: 5173,
     watch: { usePolling: true }, // reliable HMR on Docker/Windows bind mounts
+    allowedHosts: ['airlink.netcarenepal.com', '161.97.101.7'],
   },
 })

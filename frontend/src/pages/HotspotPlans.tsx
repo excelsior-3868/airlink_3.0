@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Package } from 'lucide-react'
+import { Plus, Package, Pencil, Trash2 } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -188,14 +188,14 @@ export default function HotspotPlans() {
                   <td>
                     <Pill tone={p.status === 'active' ? 'success' : 'secondary'}>{p.status}</Pill>
                   </td>
-                  <td className="text-right whitespace-nowrap">
+                  <td className="text-right whitespace-nowrap pr-3">
                     {(isAdmin || p.created_by === user?.id) && (
                       <>
-                        <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => openEdit(p)}>
-                          Edit
+                        <button className="text-primary hover:text-indigo-700 mr-2 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" title="Edit" onClick={() => openEdit(p)}>
+                          <Pencil size={14} />
                         </button>
-                        <button className="text-xs font-bold text-rose-500 hover:underline" onClick={() => del(p)}>
-                          Delete
+                        <button className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50/80 transition-all inline-flex items-center justify-center" title="Delete" onClick={() => del(p)}>
+                          <Trash2 size={14} />
                         </button>
                       </>
                     )}

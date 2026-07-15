@@ -8,7 +8,7 @@ sql {
     server   = "mariadb"
     port     = 3306
     login    = "airlink"
-    password = "admin@123"
+    password = "airlink_pass"
     radius_db = "airlink"
 
     # Read dynamic clients from the database nas table.

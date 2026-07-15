@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Edit3, Trash2, Search, Package } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -138,26 +138,16 @@ export default function Bandwidths() {
                   <td className="font-semibold text-slate-800">{b.name}</td>
                   <td>{b.rate_down} {b.rate_down_unit}</td>
                   <td>{b.rate_up} {b.rate_up_unit}</td>
-                  {isAdmin && (
-                    <td className="text-right pr-6 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          className="btn-primary p-2 flex items-center justify-center !bg-cyan-600 border-cyan-600 hover:!bg-cyan-700 !rounded-xl !shadow-none transition-all"
-                          onClick={() => openEdit(b)}
-                          title="Edit"
-                        >
-                          <Edit3 size={14} />
+                    <td className="text-right whitespace-nowrap pr-3" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end">
+                        <button className="text-primary hover:text-indigo-700 mr-2 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" title="Edit" onClick={() => openEdit(b)}>
+                          <Pencil size={14} />
                         </button>
-                        <button
-                          className="btn-primary p-2 flex items-center justify-center !bg-rose-600 border-rose-600 hover:!bg-rose-700 !rounded-xl !shadow-none transition-all"
-                          onClick={() => del(b)}
-                          title="Delete"
-                        >
+                        <button className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50/80 transition-all inline-flex items-center justify-center" title="Delete" onClick={() => del(b)}>
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
-                  )}
                 </motion.tr>
               ))}
             </tbody>
