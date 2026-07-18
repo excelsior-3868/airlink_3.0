@@ -1,12 +1,18 @@
 #!/bin/sh
-# Install deps on first run (node_modules is a named volume), then start Vite.
+# Install deps into the node_modules named volume, then start Vite.
+# Reinstall whenever package.json / package-lock.json changes (not just first
+# run) so newly added dependencies land in the volume without a manual wipe.
 set -e
 cd /app
 
-if [ ! -f node_modules/.installed ]; then
-  echo "[frontend] Installing npm dependencies ..."
+# Stamp is the hash of the manifest files; mismatch => deps changed => reinstall.
+STAMP_FILE=node_modules/.deps-stamp
+CURRENT_STAMP=$(cat package.json package-lock.json 2>/dev/null | md5sum | cut -d' ' -f1)
+
+if [ ! -f "$STAMP_FILE" ] || [ "$(cat "$STAMP_FILE")" != "$CURRENT_STAMP" ]; then
+  echo "[frontend] Installing npm dependencies (manifest changed or first run) ..."
   npm install
-  touch node_modules/.installed
+  echo "$CURRENT_STAMP" > "$STAMP_FILE"
 fi
 
 exec "$@"
