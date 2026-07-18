@@ -19,6 +19,7 @@ import Permissions from './pages/Permissions'
 import SystemLoad from './pages/SystemLoad'
 import VoucherGenerator from './pages/VoucherGenerator'
 import VoucherCardDesigner from './pages/VoucherCardDesigner'
+import RadiusLogs from './pages/RadiusLogs'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/vouchers" element={<Guard perm="generate_voucher"><Vouchers /></Guard>} />
         <Route path="/vouchers/generate" element={<Guard perm="generate_voucher"><VoucherGenerator /></Guard>} />
         <Route path="/reports" element={<Guard perm="reports"><Reports /></Guard>} />
+        <Route path="/diagnostics" element={<Guard roles={['admin', 'reseller', 'seller']}><RadiusLogs /></Guard>} />
         <Route path="/nas" element={<Guard perm="view_settings" roles={['admin']}><Nas /></Guard>} />
         <Route path="/logs" element={<Guard perm="view_settings" roles={['admin']}><LoginLogs /></Guard>} />
         <Route path="/permissions" element={<Guard perm="view_settings" roles={['admin']}><Permissions /></Guard>} />

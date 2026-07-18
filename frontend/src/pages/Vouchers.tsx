@@ -76,7 +76,7 @@ export default function Vouchers() {
     () => api.get('/vouchers', { params: { page, ...cleanFilters() } }).then((r) => r.data.data),
   )
 
-  const { data: batchesData } = useQuery<any>(
+  const { data: batchesData, refetch: refetchBatches } = useQuery<any>(
     `batches?page=${batchesPage}&${appliedBatchKey}`,
     () => api.get('/batches', { params: { page: batchesPage, ...cleanBatchFilters() } }).then((r) => r.data.data),
     { enabled: activeTab === 'batches' },
@@ -146,7 +146,7 @@ export default function Vouchers() {
   return (
     <div>
       <PageTitle 
-        title="Vouchers" 
+        title="Voucher Sales" 
         subtitle="Generate & manage voucher cards"
         icon={<Ticket size={22} className="text-rose-500" />}
       />
@@ -184,7 +184,7 @@ export default function Vouchers() {
                 onChange={(val) => setFilters({ ...filters, status: val })}
                 options={[
                   { value: '', label: 'All Statuses' },
-                  ...['new', 'sold', 'active', 'expired', 'disabled'].map((s) => ({ value: s, label: s.toUpperCase() }))
+                  ...['active', 'used', 'sold', 'expired', 'disabled'].map((s) => ({ value: s, label: s.toUpperCase() }))
                 ]}
               />
             </div>
@@ -239,7 +239,7 @@ export default function Vouchers() {
                       <td><Pill tone={statusPill[v.status] || 'secondary'}>{v.status}</Pill></td>
                       <td className="text-xs">{date(v.expires_at)}</td>
                       <td className="text-right whitespace-nowrap">
-                        {v.status === 'new' && (
+                        {v.status === 'active' && (
                           <button className="text-xs font-bold text-emerald-600 hover:underline mr-3" onClick={() => { setSellVoucher(v); setCustomerUsername(''); setSelling(false) }}>Sell</button>
                         )}
                         <button 
@@ -330,7 +330,14 @@ export default function Vouchers() {
       )}
 
       {activeTab === 'generate' && (
-        <VoucherGenerateTab plans={plans} refetchPlans={refetchPlans} />
+        <VoucherGenerateTab 
+          plans={plans} 
+          refetchPlans={refetchPlans} 
+          onSuccess={() => {
+            load()
+            refetchBatches()
+          }}
+        />
       )}
 
       {/* Sell Voucher Modal */}

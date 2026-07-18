@@ -42,7 +42,7 @@ class TransactionController extends Controller
 
         $parts = [];
 
-        if (! $source || $source === 'wallet') {
+        if ($source === 'wallet') {
             $q = DB::table('wallet_transactions')
                 ->selectRaw("'wallet' as source, id as source_id, type as txn_type, amount, 'rs' as unit, balance_after, user_id as account_id, from_user_id, to_user_id, reference, note, NULL as status, created_at");
             if ($scopeIds !== null) {

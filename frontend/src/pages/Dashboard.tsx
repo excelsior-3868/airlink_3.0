@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle, Package } from 'lucide-react'
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { api } from '../lib/api'
 import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -227,15 +228,65 @@ export default function Dashboard() {
       {d.role === 'seller' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Wallet Balance" value={<span className="text-emerald-600">{rs(d.balances.wallet)}</span>} icon={<Wallet size={22} />} iconColorClass="text-emerald-600 bg-emerald-50 border border-emerald-100/50" />
             <StatCard label="GB Balance (Stock)" value={<span className="text-cyan-600">{gb(d.balances.gb)}</span>} icon={<Database size={22} />} iconColorClass="text-cyan-600 bg-cyan-50 border border-cyan-100/50" />
-            <StatCard label="My Wallet Due (Payable)" value={<span className="text-rose-600">{rs(d.balances.wallet_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
+            <StatCard label="Due Payable" value={<span className="text-rose-600">{rs(d.balances.wallet_due)}</span>} icon={<Wallet size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" sub={d.reseller_name ? <span className="text-xs text-slate-500">To: <span className="font-semibold text-slate-700">{d.reseller_name}</span></span> : undefined} />
             <StatCard label="Today's Sales" value={<span className="text-blue-600">{rs(d.today.sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-blue-600 bg-blue-50 border border-blue-100/50" />
             <VoucherStatCard title="Total Vouchers" vouchers={d.vouchers} icon={<Ticket size={22} />} iconColorClass="text-rose-600 bg-rose-50 border border-rose-100/50" />
-            <StatCard label="Voucher Sales" value={<span className="text-indigo-600">{rs(d.voucher_sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-indigo-600 bg-indigo-50 border border-indigo-100/50" />
+            <StatCard label="Created Voucher Value" value={<span className="text-indigo-600">{rs(d.voucher_sales)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-indigo-600 bg-indigo-50 border border-indigo-100/50" />
             <StatCard label="Retail Profit" value={<span className="text-teal-600">{rs(d.retail_profit)}</span>} icon={<TrendingUp size={22} />} iconColorClass="text-teal-600 bg-teal-50 border border-teal-100/50" />
             <StatCard label="Packages" value={<span className="text-amber-600">{num(d.counts.packages)}</span>} icon={<Package size={22} />} iconColorClass="text-amber-600 bg-amber-50 border border-amber-100/50" />
           </div>
+
+          {/* Charts Row */}
+          {d.daily_trend && d.daily_trend.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Daily Sales Trend */}
+              <GlassCard>
+                <h3 className="font-bold mb-4 flex items-center gap-2 text-primary">
+                  <TrendingUp size={18} /> Daily Sales Trend
+                  <span className="ml-auto text-xs font-normal text-slate-400">Last 14 days</span>
+                </h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={d.daily_trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => v.slice(5)} />
+                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={52} tickFormatter={(v) => `Rs ${(v/1000).toFixed(0)}k`} />
+                    <Tooltip formatter={(v: any) => [`Rs ${Number(v).toLocaleString()}`, 'Sales']} labelStyle={{ fontSize: 11 }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                    <Area type="monotone" dataKey="sales" stroke="#6366f1" strokeWidth={2} fill="url(#salesGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </GlassCard>
+
+              {/* No. of Vouchers Sold */}
+              <GlassCard>
+                <h3 className="font-bold mb-4 flex items-center gap-2 text-primary">
+                  <Ticket size={18} /> No. of Vouchers Sold
+                  <span className="ml-auto text-xs font-normal text-slate-400">Last 14 days</span>
+                </h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={d.daily_trend} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => v.slice(5)} />
+                    <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={32} allowDecimals={false} />
+                    <Tooltip formatter={(v: any) => [v, 'Vouchers']} labelStyle={{ fontSize: 11 }} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
+                    <Bar dataKey="count" fill="url(#barGrad)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </GlassCard>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4">
             {d.recent_customers && (

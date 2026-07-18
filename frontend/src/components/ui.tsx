@@ -3,7 +3,7 @@ import { ReactNode, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search } from 'lucide-react'
+import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search, Sparkles } from 'lucide-react'
 
 export function GlassCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`glass-card p-5 sm:p-6 ${className}`}>{children}</div>
@@ -78,7 +78,7 @@ export function VoucherStatCard({
           {byStatus.disabled || 0} Disabled
         </span>
         <span className="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 text-[10px] font-bold border border-sky-100/50 shrink-0">
-          {byStatus.new || 0} New
+          {byStatus.used || 0} Used
         </span>
         <span className="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-100/50 shrink-0">
           {byStatus.sold || 0} Sold
@@ -107,13 +107,15 @@ export function PageTitle({ title, subtitle, action, icon }: { title: string; su
       </div>
       
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Wallet & GB Balance glass-badges */}
+        {/* Wallet & GB Balance glass-badges — hidden on mobile (shown in the top app bar instead) */}
         {user && (
-          <div className="flex items-center gap-2.5 bg-white/70 backdrop-blur-md border border-white/80 rounded-2xl p-2 px-3.5 shadow-sm text-xs select-none">
-            <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
-              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
-              <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
-            </div>
+          <div className="hidden sm:flex items-center gap-2.5 bg-white/70 backdrop-blur-md border border-white/80 rounded-2xl p-2 px-3.5 shadow-sm text-xs select-none">
+            {user.role !== 'seller' && (
+              <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
+                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
+                <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">GB:</span>
               <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
@@ -261,6 +263,7 @@ export function CustomSelect({
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
@@ -290,7 +293,11 @@ export function CustomSelect({
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      if (
+        ref.current &&
+        !ref.current.contains(event.target as Node) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(event.target as Node))
+      ) {
         setOpen(false)
       }
     }
@@ -310,7 +317,7 @@ export function CustomSelect({
     const s = String(val).toLowerCase();
     
     let label = originalLabel;
-    if (['new', 'sold', 'active', 'expired', 'disabled'].includes(s)) {
+    if (['new', 'used', 'sold', 'active', 'expired', 'disabled'].includes(s)) {
       label = s.charAt(0).toUpperCase() + s.slice(1);
     } else if (val === '' && (originalLabel.toLowerCase() === 'all statuses' || originalLabel.toLowerCase() === 'all status')) {
       label = 'All Statuses';
@@ -318,6 +325,8 @@ export function CustomSelect({
 
     let icon: ReactNode = null;
     if (s === 'new') {
+      icon = <Sparkles size={14} className="text-sky-500" />;
+    } else if (s === 'used') {
       icon = <PlusCircle size={14} className="text-blue-500" />;
     } else if (s === 'sold') {
       icon = <Tag size={14} className="text-amber-500" />;
@@ -377,6 +386,7 @@ export function CustomSelect({
       {/* Options Dropdown list */}
       {open && createPortal(
         <div 
+          ref={dropdownRef}
           style={{
             position: 'absolute',
             top: coords.top + 6,

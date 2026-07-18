@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   LayoutDashboard, Package, Users2, Store, Wallet as WalletIcon,
   Database, Ticket, BarChart3, LogOut, Wifi, Router, ShieldCheck, Shield,
-  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight
+  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight, Menu, X, Terminal
 } from 'lucide-react'
 import { Role, useAuth } from '../lib/auth'
+import { rs, gb } from '../lib/format'
 import ChangePasswordModal from '../components/ChangePasswordModal'
 
 interface NavItem {
@@ -39,7 +40,8 @@ const NAV: NavItem[] = [
   { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500', perm: 'allocate_gb' },
   { to: '/vouchers', label: 'Voucher Sales', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'view_transactions' },
-  { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500', perm: 'reports' },
+  { to: '/reports', label: 'Voucher Usage Report', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500', perm: 'reports' },
+  { to: '/diagnostics', label: 'Voucher Diagnostics', icon: Terminal, roles: ['admin', 'reseller', 'seller'], color: 'text-slate-600' },
   {
     label: 'Settings',
     icon: Shield,
@@ -69,6 +71,7 @@ export default function AppShell() {
   }
   const [profileOpen, setProfileOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -83,6 +86,18 @@ export default function AppShell() {
     }
   }, [])
 
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [location.pathname])
+
+  // Lock body scroll while the mobile drawer is open.
+  useEffect(() => {
+    const original = document.body.style.overflow
+    if (drawerOpen) document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = original }
+  }, [drawerOpen])
+
   if (!user) return null
   const items = NAV
     // Hide items the role can't access OR the permission matrix has switched off.
@@ -95,9 +110,73 @@ export default function AppShell() {
     nav('/login', { replace: true })
   }
 
+  const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2)
+
+  // Shared nav list — rendered in both the desktop sidebar and the mobile drawer.
+  const NavList = ({ onNavigate }: { onNavigate?: () => void }) => (
+    <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
+      {items.map((it) => {
+        if (it.children) {
+          const hasActiveChild = it.children.some((c) => location.pathname === c.to)
+          return (
+            <div key={it.label} className="flex flex-col">
+              <button
+                onClick={() => toggleExpanded(it.label)}
+                className={`app-sidebar-nav-item w-full flex items-center justify-between group ${
+                  hasActiveChild ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
+                  <span className="font-bold">{it.label}</span>
+                </div>
+                {expanded[it.label] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              </button>
+              {expanded[it.label] && (
+                <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
+                  {it.children
+                    .filter((c) => c.roles.includes(user.role) && can(c.perm))
+                    .map((c) => (
+                      <NavLink
+                        key={c.to}
+                        to={c.to}
+                        onClick={onNavigate}
+                        className={({ isActive }) =>
+                          `app-sidebar-nav-item text-sm group ${
+                            isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
+                          }`
+                        }
+                      >
+                        <c.icon size={16} className={`transition-transform group-hover:scale-110 ${c.color}`} />
+                        <span>{c.label}</span>
+                      </NavLink>
+                    ))}
+                </div>
+              )}
+            </div>
+          )
+        }
+        return (
+          <NavLink
+            key={it.to}
+            to={it.to!}
+            end={it.to === '/'}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `app-sidebar-nav-item group ${isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'}`
+            }
+          >
+            <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
+            {it.label}
+          </NavLink>
+        )
+      })}
+    </nav>
+  )
+
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-4 lg:p-5 flex gap-4">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-background md:p-4 lg:p-5 md:flex md:gap-4">
+      {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 shrink-0 app-sidebar-panel p-4 sticky top-4 h-[calc(100vh-2rem)]">
         <div className="flex items-center gap-3 px-2 py-2 mb-4">
           <div className="bg-[#003164] text-white rounded-2xl p-2.5 shadow-sm"><Wifi size={18} /></div>
@@ -107,62 +186,7 @@ export default function AppShell() {
           </div>
         </div>
 
-        <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
-          {items.map((it) => {
-            if (it.children) {
-              const hasActiveChild = it.children.some((c) => location.pathname === c.to)
-              return (
-                <div key={it.label} className="flex flex-col">
-                  <button
-                    onClick={() => toggleExpanded(it.label)}
-                    className={`app-sidebar-nav-item w-full flex items-center justify-between group ${
-                      hasActiveChild ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
-                      <span className="font-bold">{it.label}</span>
-                    </div>
-                    {expanded[it.label] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </button>
-                  {expanded[it.label] && (
-                    <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
-                      {it.children
-                        .filter((c) => c.roles.includes(user.role) && can(c.perm))
-                        .map((c) => (
-                          <NavLink
-                            key={c.to}
-                            to={c.to}
-                            className={({ isActive }) =>
-                              `app-sidebar-nav-item text-sm group ${
-                                isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
-                              }`
-                            }
-                          >
-                            <c.icon size={16} className={`transition-transform group-hover:scale-110 ${c.color}`} />
-                            <span>{c.label}</span>
-                          </NavLink>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-            return (
-              <NavLink
-                key={it.to}
-                to={it.to!}
-                end={it.to === '/'}
-                className={({ isActive }) =>
-                  `app-sidebar-nav-item group ${isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'}`
-                }
-              >
-                <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
-                {it.label}
-              </NavLink>
-            )
-          })}
-        </nav>
+        <NavList />
 
         {/* Profile Card Dropdown Container */}
         <div ref={profileRef} className="relative mt-3 pt-3 border-t border-slate-100">
@@ -206,7 +230,7 @@ export default function AppShell() {
           >
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 text-rose-700 flex items-center justify-center font-extrabold text-sm shrink-0 shadow-inner uppercase">
-                {user.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                {initials}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-extrabold text-sm text-[#003164] whitespace-normal break-words leading-tight select-none">{user.name}</p>
@@ -218,8 +242,105 @@ export default function AppShell() {
         </div>
       </aside>
 
+      {/* Mobile top app bar */}
+      <header className="md:hidden sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-200/70 pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center justify-between gap-2 px-3 h-14">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            className="w-10 h-10 flex items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-[#003164] active:scale-95 transition-transform"
+          >
+            <Menu size={20} />
+          </button>
+
+          <div className="flex items-center gap-2">
+            <div className="bg-[#003164] text-white rounded-xl p-1.5 shadow-sm"><Wifi size={15} /></div>
+            <p className="font-medium text-lg tracking-tight text-[#003164] leading-none">Airlink</p>
+          </div>
+
+          {/* Compact balances */}
+          <div className="flex items-center gap-1.5 bg-white/70 border border-slate-200/80 rounded-2xl px-2.5 h-9 text-[11px] shadow-sm select-none">
+            {user.role !== 'seller' && (
+              <span className="font-extrabold text-slate-800 border-r border-slate-200 pr-1.5">{rs(user.wallet_balance)}</span>
+            )}
+            <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile drawer + backdrop */}
+      <AnimatePresence>
+        {drawerOpen && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setDrawerOpen(false)}
+            className="md:hidden fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm"
+          />
+        )}
+        {drawerOpen && (
+          <motion.aside
+            key="drawer"
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'tween', duration: 0.26, ease: 'easeOut' }}
+            className="md:hidden fixed top-0 left-0 z-[60] h-[100dvh] w-[82%] max-w-xs bg-white border-r border-slate-200 shadow-2xl flex flex-col p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
+          >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3 px-1">
+                  <div className="bg-[#003164] text-white rounded-2xl p-2.5 shadow-sm"><Wifi size={18} /></div>
+                  <div>
+                    <p className="font-medium text-2xl tracking-tight text-[#003164] leading-none">Airlink</p>
+                    <p className="text-[10px] text-slate-400 font-bold tracking-wider mt-1 uppercase">Billing v3.0</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDrawerOpen(false)}
+                  aria-label="Close menu"
+                  className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 active:scale-95 transition-transform"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <NavList onNavigate={() => setDrawerOpen(false)} />
+
+              {/* Drawer profile actions */}
+              <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2">
+                <div className="flex items-center gap-2.5 p-2 rounded-2xl border border-slate-200/80 bg-white">
+                  <div className="w-10 h-10 rounded-full bg-rose-50 border border-rose-100 text-rose-700 flex items-center justify-center font-extrabold text-sm shrink-0 shadow-inner uppercase">
+                    {initials}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-extrabold text-sm text-[#003164] break-words leading-tight">{user.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{user.role}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => { setDrawerOpen(false); setPasswordOpen(true) }}
+                    className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold active:scale-95 transition-transform"
+                  >
+                    <Key size={14} className="text-rose-500" /> Password
+                  </button>
+                  <button
+                    onClick={() => { setDrawerOpen(false); doLogout() }}
+                    className="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-rose-100 bg-rose-50/50 text-rose-600 text-xs font-bold active:scale-95 transition-transform"
+                  >
+                    <LogOut size={14} /> Log Out
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
+        )}
+      </AnimatePresence>
+
       {/* Main */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-4 md:p-0">
         <motion.main initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <Outlet />
         </motion.main>

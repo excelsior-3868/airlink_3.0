@@ -99,8 +99,14 @@ function VoucherPackageCard({
 
   const totalGbRequired = useMemo(() => {
     const dataGb = Number(p.data_gb || 0)
-    return dataGb * (quantity || 0)
-  }, [p.data_gb, quantity])
+    if (dataGb > 0) {
+      return dataGb * (quantity || 0)
+    }
+    const basePrice = Number(p.base_price || 0)
+    const rate = Number(targetUser?.gb_rate || 1)
+    if (rate <= 0) return 0
+    return (basePrice * (quantity || 0)) / rate
+  }, [p.data_gb, p.base_price, quantity, targetUser?.gb_rate])
 
   const totalWalletCost = useMemo(() => {
     const basePrice = Number(p.base_price || 0)
@@ -155,7 +161,7 @@ function VoucherPackageCard({
       )}
 
       {/* Header */}
-      <div className="bg-[#003164] p-4 text-white text-center relative flex flex-col items-center justify-center min-h-[92px] shrink-0">
+      <div className="bg-[#003164] p-3 text-white text-center relative flex flex-col items-center justify-center min-h-[76px] shrink-0">
         <button
           onClick={() => onEdit(p)}
           className="absolute top-2 right-2 text-white/70 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all"
@@ -173,18 +179,25 @@ function VoucherPackageCard({
       </div>
 
       {/* Body */}
-      <div className="p-4 flex-1 space-y-3.5 flex flex-col justify-between">
-        <div className="space-y-2.5">
+      <div className="p-3 flex-1 space-y-2.5 flex flex-col justify-between">
+        <div className="space-y-2">
           {/* Quantity */}
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold text-slate-500">No of Voucher :</span>
             <input
-              type="number"
-              min={1}
-              max={20000}
+              type="text"
               className="border border-[#005FA3]/30 rounded-lg px-2.5 py-1 text-sm text-[#003164] w-36 text-center font-bold outline-none focus:border-primary"
               value={quantity}
-              onChange={(e) => setQuantity(+e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === '') {
+                  setQuantity('')
+                  return
+                }
+                if (/^\d+$/.test(val)) {
+                  setQuantity(parseInt(val, 10))
+                }
+              }}
             />
           </div>
 
@@ -200,25 +213,33 @@ function VoucherPackageCard({
           </div>
 
           {/* Generated For */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-slate-500">Generated For :</span>
-            <CustomSelect
-              value={delegationId}
-              onChange={(val) => setDelegationId(val)}
-              options={delegationOptions}
-              searchable={true}
-              className="min-w-[144px]"
-            />
-          </div>
+          {user?.role !== 'seller' && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-slate-500">Generated For :</span>
+              <CustomSelect
+                value={delegationId}
+                onChange={(val) => setDelegationId(val)}
+                options={delegationOptions}
+                searchable={true}
+                className="min-w-[144px]"
+              />
+            </div>
+          )}
 
         </div>
 
         {/* Dynamic Balance & Warning alerts */}
-        <div className="pt-2">
-          <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold border-t border-slate-100 pt-2">
-            <span>Required: {gb(totalGbRequired)}</span>
-            <span className={isShortGb ? 'text-rose-500' : 'text-slate-500'}>
-              Avail: {gb(targetGbBalance)}
+        <div className="pt-2 border-t border-slate-100">
+          <div className="flex justify-between items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg border border-slate-200/50">
+              Required: <span className="text-slate-800">{gb(totalGbRequired)}</span>
+            </span>
+            <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-1 rounded-lg border ${
+              isShortGb 
+                ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'
+            }`}>
+              Available: <span className={isShortGb ? 'text-rose-800' : 'text-emerald-800'}>{gb(targetGbBalance)}</span>
             </span>
           </div>
 
@@ -239,9 +260,9 @@ function VoucherPackageCard({
       <button
         onClick={handlePrint}
         disabled={busy || isShortGb || isShortWallet}
-        className="bg-[#005FA3] hover:bg-[#004C83] disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold py-3 text-center transition-all flex items-center justify-center gap-2 cursor-pointer border-t border-[#005FA3]/10 text-sm select-none"
+        className="bg-[#005FA3] hover:bg-[#004C83] disabled:bg-slate-200 disabled:text-slate-400 text-white font-extrabold py-2.5 text-center transition-all flex items-center justify-center gap-2 cursor-pointer border-t border-[#005FA3]/10 text-sm select-none"
       >
-        <Printer size={15} /> Print
+        <Printer size={15} /> Generate and Print
       </button>
     </div>
   )
@@ -250,9 +271,10 @@ function VoucherPackageCard({
 interface VoucherGenerateTabProps {
   plans: any[]
   refetchPlans: () => void
+  onSuccess?: () => void
 }
 
-export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGenerateTabProps) {
+export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: VoucherGenerateTabProps) {
   const { user, refresh } = useAuth()
 
   // Configuration resources
@@ -303,12 +325,45 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
     return opts
   }, [allResellers, allSellers, user])
 
+  // Options for the main page Show Packages For filter
+  const ownerFilterOptions = useMemo(() => {
+    const opts: SelectOption[] = []
+    if (user?.role === 'admin') {
+      opts.push({ value: 'all', label: 'All Packages' })
+    }
+    opts.push({ value: '', label: 'Myself' })
+    if (user?.role === 'admin' || user?.role === 'reseller') {
+      allResellers.forEach((r) => {
+        opts.push({
+          value: `reseller-${r.id}`,
+          label: r.name,
+          badge: <span className="text-[10px] bg-purple-50 text-purple-600 font-bold px-2 py-0.5 rounded-full border border-purple-100/50">Reseller</span>
+        })
+      })
+    }
+    allSellers.forEach((s) => {
+      opts.push({
+        value: `seller-${s.id}`,
+        label: s.name,
+        badge: <span className="text-[10px] bg-amber-50 text-amber-600 font-bold px-2 py-0.5 rounded-full border border-amber-100/50">Seller</span>
+      })
+    })
+    return opts
+  }, [allResellers, allSellers, user])
+
   const [selectedOwnerId, setSelectedOwnerId] = useState('')
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      setSelectedOwnerId('all')
+    }
+  }, [user])
 
   // Filter plans to show only GB package types created by the selected owner
   const filteredGbPackages = useMemo(() => {
     return plans.filter((p) => {
       if (p.package_type !== 'gb') return false
+      if (selectedOwnerId === 'all') return true
       if (!selectedOwnerId) {
         return p.created_by === user?.id
       } else {
@@ -326,7 +381,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
     name: '',
     data_gb: '',
     bandwidth_id: '',
-    validity_days: '30',
+    validity_days: '',
     selling_price: '',
     base_price: '',
     delegation_id: ''
@@ -383,10 +438,10 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
       name: '',
       data_gb: '',
       bandwidth_id: '',
-      validity_days: '30',
+      validity_days: '',
       selling_price: '',
       base_price: '',
-      delegation_id: selectedOwnerId
+      delegation_id: selectedOwnerId === 'all' ? '' : selectedOwnerId
     })
     setCreateErr('')
     setCreateBusy(false)
@@ -428,7 +483,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
       refetchPlans()
       setCreateModalOpen(false)
       setNewPlan({
-        name: '', data_gb: '', bandwidth_id: '', validity_days: '30', selling_price: '', base_price: '', delegation_id: ''
+        name: '', data_gb: '', bandwidth_id: '', validity_days: '', selling_price: '', base_price: '', delegation_id: ''
       })
     } catch (err) {
       setCreateErr(apiError(err))
@@ -491,27 +546,48 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
     }
   }
 
+  // Handle Delete Package
+  const handleDeletePackage = async () => {
+    if (!editingPlan) return
+    if (!window.confirm(`Are you sure you want to delete the package "${editingPlan.name}"?`)) return
+
+    setEditBusy(true)
+    setEditErr('')
+    try {
+      await api.delete(`/plans/${editingPlan.id}`)
+      refetchPlans()
+      setEditingPlan(null)
+    } catch (err) {
+      setEditErr(apiError(err))
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
   // Handle Card Generation success
   const handleGenerationSuccess = (resData: any, planObj: any) => {
     setSuccessPlan(planObj)
     setSuccessResult(resData)
     // Automatically trigger immediate card document rendering in background
     openBlob('/vouchers/print', { batch: resData.batch_code })
+    onSuccess?.()
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-bold text-[#003164] whitespace-nowrap">Show Packages For:</span>
-          <CustomSelect
-            value={selectedOwnerId}
-            onChange={(val) => setSelectedOwnerId(val)}
-            options={delegationOptions}
-            searchable={true}
-            className="min-w-[220px]"
-          />
-        </div>
+      <div className={`flex flex-wrap ${user?.role === 'seller' ? 'justify-end' : 'justify-between'} items-center gap-4 mb-2`}>
+        {user?.role !== 'seller' && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-[#003164] whitespace-nowrap">Show Packages For:</span>
+            <CustomSelect
+              value={selectedOwnerId}
+              onChange={(val) => setSelectedOwnerId(val)}
+              options={ownerFilterOptions}
+              searchable={true}
+              className="min-w-[220px]"
+            />
+          </div>
+        )}
         <button
           onClick={openCreateModal}
           className="btn-primary flex items-center gap-2 py-2 px-4 rounded-xl font-bold shadow-sm"
@@ -521,7 +597,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
       </div>
 
       {/* Card Grid Layout */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredGbPackages.map((p) => (
           <VoucherPackageCard
             key={p.id}
@@ -538,23 +614,44 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
       </div>
 
       {filteredGbPackages.length === 0 && (
-        <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-12 text-center text-slate-500 font-semibold">
-          No custom GB packages found for this user. Click "Create a Package" to get started.
+        <div className="bg-white border border-slate-200/80 rounded-[24px] p-12 shadow-sm flex flex-col items-center justify-center text-center">
+          <div className="p-4 bg-slate-50 text-[#003164]/60 rounded-full mb-4 border border-slate-100">
+            <Ticket size={32} />
+          </div>
+          <h3 className="text-base font-bold text-slate-800 tracking-tight">No Custom GB Packages Found</h3>
+          <p className="text-xs text-slate-400 font-medium max-w-sm mt-1 mb-2">
+            {user?.role === 'seller'
+              ? 'You do not have any custom packages configured yet.'
+              : 'There are no custom GB packages created for this user yet. Click "Create a Package" to get started.'}
+          </p>
         </div>
       )}
 
       {/* Create Package Modal */}
       <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Custom Package Configuration">
         <form onSubmit={handleCreatePackage} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-500 mb-1.5 block">Package Name</label>
-            <input
-              required
-              className="input w-full"
-              placeholder="e.g. Hotel 2GB"
-              value={newPlan.name}
-              onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {canDelegate && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-1.5 block">Plan Owner/Creator</label>
+                <CustomSelect
+                  value={newPlan.delegation_id}
+                  onChange={(val) => setNewPlan({ ...newPlan, delegation_id: val })}
+                  options={delegationOptions}
+                  className="w-full"
+                />
+              </div>
+            )}
+            <div className={canDelegate ? '' : 'md:col-span-2'}>
+              <label className="text-xs font-bold text-slate-500 mb-1.5 block">Package Name</label>
+              <input
+                required
+                className="input w-full"
+                placeholder="e.g. Hotel 2GB"
+                value={newPlan.name}
+                onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -633,16 +730,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
             </div>
           </div>
 
-          {canDelegate && (
-            <div>
-              <label className="text-xs font-bold text-slate-500 mb-1.5 block">Plan Owner/Creator</label>
-              <CustomSelect
-                value={newPlan.delegation_id}
-                onChange={(val) => setNewPlan({ ...newPlan, delegation_id: val })}
-                options={delegationOptions}
-              />
-            </div>
-          )}
+
 
           {createErr && <div className="pill danger w-full justify-center py-2">{createErr}</div>}
 
@@ -668,15 +756,28 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
       {/* Edit Package Modal */}
       <Modal open={!!editingPlan} onClose={() => setEditingPlan(null)} title={`Edit Package: ${editingPlan?.name}`}>
         <form onSubmit={handleEditPackage} className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-500 mb-1.5 block">Package Name</label>
-            <input
-              required
-              className="input w-full"
-              placeholder="e.g. Hotel 2GB"
-              value={editForm.name}
-              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {canDelegate && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-1.5 block">Plan Owner/Creator</label>
+                <CustomSelect
+                  value={editForm.delegation_id}
+                  onChange={(val) => setEditForm({ ...editForm, delegation_id: val })}
+                  options={delegationOptions}
+                  className="w-full"
+                />
+              </div>
+            )}
+            <div className={canDelegate ? '' : 'md:col-span-2'}>
+              <label className="text-xs font-bold text-slate-500 mb-1.5 block">Package Name</label>
+              <input
+                required
+                className="input w-full"
+                placeholder="e.g. Hotel 2GB"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,34 +856,35 @@ export default function VoucherGenerateTab({ plans, refetchPlans }: VoucherGener
             </div>
           </div>
 
-          {canDelegate && (
-            <div>
-              <label className="text-xs font-bold text-slate-500 mb-1.5 block">Plan Owner/Creator</label>
-              <CustomSelect
-                value={editForm.delegation_id}
-                onChange={(val) => setEditForm({ ...editForm, delegation_id: val })}
-                options={delegationOptions}
-              />
-            </div>
-          )}
+
 
           {editErr && <div className="pill danger w-full justify-center py-2">{editErr}</div>}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-5">
+          <div className="flex justify-between items-center pt-4 border-t border-slate-100 mt-5">
             <button
               type="button"
-              className="btn-ghost !border-slate-200 !text-slate-700 hover:!bg-slate-50 py-2 px-5 rounded-xl font-bold"
-              onClick={() => setEditingPlan(null)}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
               disabled={editBusy}
-              className="btn-primary py-2 px-5 rounded-xl font-bold flex items-center gap-1.5"
+              onClick={handleDeletePackage}
+              className="px-4 py-2 text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {editBusy ? 'Saving...' : 'Save Changes'}
+              Delete Package
             </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="btn-ghost !border-slate-200 !text-slate-700 hover:!bg-slate-50 py-2 px-5 rounded-xl font-bold"
+                onClick={() => setEditingPlan(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={editBusy}
+                className="btn-primary py-2 px-5 rounded-xl font-bold flex items-center gap-1.5"
+              >
+                {editBusy ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </form>
       </Modal>

@@ -57,11 +57,19 @@ class VoucherService
         }
 
         $validity = $validityDays ?: (int) $plan->validity_days;
-        $gbPer = (float) ($plan->data_gb ?? 0);
         $pricePer = $customPrice !== null ? (float) $customPrice : (float) $plan->selling_price;
         $basePricePer = $customBasePrice !== null ? (float) $customBasePrice : (float) ($plan->base_price ?? 0);
-        $totalGb = $gbPer * $quantity;
         $totalCost = $basePricePer * $quantity;
+
+        $planGb = (float) ($plan->data_gb ?? 0);
+        if ($planGb > 0) {
+            $totalGb = $planGb * $quantity;
+            $gbPer = $planGb;
+        } else {
+            $rate = (float) ($owner->gb_rate ?? 1.00);
+            $totalGb = $rate > 0 ? round($totalCost / $rate, 3) : 0.000;
+            $gbPer = $rate > 0 ? round($basePricePer / $rate, 3) : 0.000;
+        }
 
         // Fail fast with a clear message before touching anything.
         if ($purchaseSource === 'wallet') {
@@ -107,7 +115,7 @@ class VoucherService
                     'owner_id' => $owner->id, 'reseller_id' => $resellerId, 'seller_id' => $sellerId,
                     'data_gb' => $gbPer ?: null, 'validity_days' => $validity, 'price' => $pricePer,
                     'base_price' => $basePricePer,
-                    'status' => 'new', 'expires_at' => $expiresAt,
+                    'status' => 'active', 'expires_at' => $expiresAt,
                     'created_at' => $now, 'updated_at' => $now,
                 ];
                 $r = $this->radius->rows($code, $code, $plan);

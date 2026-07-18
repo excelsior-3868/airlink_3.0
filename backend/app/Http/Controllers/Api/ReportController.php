@@ -31,19 +31,24 @@ class ReportController extends Controller
             $summary[$r->plan_id] ??= [
                 'plan_id' => $r->plan_id, 'plan' => $r->plan,
                 'generated' => 0, 'used' => 0, 'remaining' => 0, 'revenue' => 0,
-                'by_status' => ['new' => 0, 'sold' => 0, 'active' => 0, 'expired' => 0, 'disabled' => 0],
+                'by_status' => ['new' => 0, 'sold' => 0, 'active' => 0, 'used' => 0, 'expired' => 0, 'disabled' => 0],
             ];
             $summary[$r->plan_id]['generated'] += (int) $r->c;
             $summary[$r->plan_id]['by_status'][$r->status] = (int) $r->c;
-            if (in_array($r->status, ['sold', 'active', 'expired'], true)) {
+            if (in_array($r->status, ['sold', 'active', 'used', 'expired'], true)) {
                 $summary[$r->plan_id]['revenue'] += (float) $r->revenue;
             }
-            if (in_array($r->status, ['active', 'expired'], true)) {
+            // "Used" = vouchers that are fully used/redeemed or expired.
+            if (in_array($r->status, ['used', 'expired'], true)) {
                 $summary[$r->plan_id]['used'] += (int) $r->c;
             }
         }
+        $totalsByStatus = ['new' => 0, 'sold' => 0, 'active' => 0, 'used' => 0, 'expired' => 0, 'disabled' => 0];
         foreach ($summary as &$s) {
             $s['remaining'] = $s['generated'] - $s['used'];
+            foreach ($s['by_status'] as $status => $count) {
+                $totalsByStatus[$status] += $count;
+            }
         }
 
         return $this->ok([
@@ -53,6 +58,7 @@ class ReportController extends Controller
                 'used' => array_sum(array_column($summary, 'used')),
                 'remaining' => array_sum(array_column($summary, 'remaining')),
                 'revenue' => array_sum(array_column($summary, 'revenue')),
+                'by_status' => $totalsByStatus,
             ],
         ]);
     }
@@ -83,6 +89,9 @@ class ReportController extends Controller
         }
         if ($code = $request->query('code')) {
             $q->where('code', 'like', "%$code%");
+        }
+        if ($batch = $request->query('batch')) {
+            $q->whereHas('batch', fn ($x) => $x->where('batch_code', 'like', "%$batch%"));
         }
         if ($cu = $request->query('customer_username')) {
             $q->where('customer_username', 'like', "%$cu%");

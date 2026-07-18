@@ -47,6 +47,7 @@ services:
       - ./docker/freeradius/clients.conf:/var/www/html/clients.conf:ro
       # vendor lives in a fast Linux volume, not the slow Windows bind mount.
       - backend_vendor:/var/www/html/vendor
+      - radius_logs:/var/log/freeradius:ro
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -119,6 +120,8 @@ services:
     ports:
       - "${RADIUS_AUTH_PORT:-18120}:1812/udp"
       - "${RADIUS_ACCT_PORT:-18130}:1813/udp"
+    volumes:
+      - radius_logs:/var/log/freeradius
     depends_on:
       mariadb:
         condition: service_healthy
@@ -141,3 +144,4 @@ volumes:
   mariadb_data:
   backend_vendor:
   frontend_node_modules:
+  radius_logs:

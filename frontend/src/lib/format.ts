@@ -11,6 +11,7 @@ export const date = (s: string | null) => (s ? new Date(s).toLocaleDateString('e
 
 export const statusPill: Record<string, string> = {
   new: 'info',
+  used: 'info',
   sold: 'warning',
   active: 'success',
   expired: 'secondary',

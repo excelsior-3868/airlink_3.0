@@ -32,13 +32,26 @@
   }
   *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     font-family: var(--font-sans);
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     -webkit-font-smoothing: antialiased;
+    /* Avoid rubber-band overscroll revealing a blank area in the installed PWA. */
+    overscroll-behavior-y: none;
   }
   h1, h2, h3, h4, h5, h6 { letter-spacing: -0.02em; }
+
+  /* Snappier taps on touch devices: no 300ms delay, no grey flash. */
+  a, button, [role="button"], input, select, textarea {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
 }
 
 @layer components {
@@ -134,7 +147,7 @@
 
   table thead th {
     background: hsl(var(--primary)); color: white !important; font-weight: 600;
-    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em;
+    font-size: 0.75rem; text-transform: none; letter-spacing: 0.03em;
     padding: 0.75rem 1rem; text-align: left;
   }
   table thead th:first-child { border-top-left-radius: 16px; }

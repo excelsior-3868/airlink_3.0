@@ -11,7 +11,6 @@ type Source = '' | 'wallet' | 'gb' | 'invoice' | 'payment'
 
 const FILTERS: { key: Source; label: string; icon: any }[] = [
   { key: '', label: 'All', icon: ArrowLeftRight },
-  { key: 'wallet', label: 'Wallet', icon: Wallet },
   { key: 'gb', label: 'GB', icon: Database },
   { key: 'invoice', label: 'Invoices', icon: FileText },
   { key: 'payment', label: 'Payments', icon: HandCoins },

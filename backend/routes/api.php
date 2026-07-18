@@ -98,6 +98,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // NAS / router management (admin only). List is readable by all authed users.
     Route::get('/nas', [NasController::class, 'index']);
+
+    // Voucher Diagnostics log — readable by all authenticated roles.
+    Route::get('/radius/server-log', [RadiusController::class, 'serverLog']);
+
     Route::middleware('role:admin')->group(function () {
         Route::post('/admin/system-load', [UserController::class, 'systemLoad']);
         Route::patch('/users/{user}/gb-rate', [UserController::class, 'updateGbRate']);

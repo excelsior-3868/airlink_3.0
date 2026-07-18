@@ -135,7 +135,7 @@ class VoucherController extends Controller
             DB::table('radreply')->where('username', $voucher->username)->delete();
             DB::table('radcheck')->insert($rows['check']);
             DB::table('radreply')->insert($rows['reply']);
-            $voucher->update(['status' => 'new']);
+            $voucher->update(['status' => 'active']);
         });
 
         return $this->ok($voucher, 'Voucher re-enabled.');
@@ -168,10 +168,10 @@ class VoucherController extends Controller
 
         return response()->streamDownload(function () use ($q) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, ['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Status', 'Expires At']);
+            fputcsv($out, ['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Customer Name', 'Status', 'Expires At']);
             $q->chunk(2000, function ($chunk) use ($out) {
                 foreach ($chunk as $v) {
-                    fputcsv($out, [$v->code, $v->username, $v->password, $v->plan?->name, $v->data_gb, $v->validity_days, $v->price, $v->status, $v->expires_at]);
+                    fputcsv($out, [$v->code, $v->username, $v->password, $v->plan?->name, $v->data_gb, $v->validity_days, $v->price, $v->customer_username, $v->status, $v->expires_at]);
                 }
             });
             fclose($out);
@@ -195,8 +195,8 @@ class VoucherController extends Controller
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Vouchers');
-        $sheet->fromArray(['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Status', 'Expires At'], null, 'A1');
-        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+        $sheet->fromArray(['Code', 'Username', 'Password', 'Plan', 'Data GB', 'Validity Days', 'Price', 'Customer Name', 'Status', 'Expires At'], null, 'A1');
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
 
         $row = 2;
         $q->chunk(2000, function ($chunk) use ($sheet, &$row) {
@@ -204,6 +204,7 @@ class VoucherController extends Controller
                 $sheet->fromArray([
                     $v->code, $v->username, $v->password, $v->plan?->name,
                     (float) $v->data_gb, $v->validity_days, (float) $v->price,
+                    $v->customer_username,
                     $v->status, (string) $v->expires_at,
                 ], null, 'A'.$row++);
             }
@@ -249,11 +250,26 @@ class VoucherController extends Controller
         })->implode('');
 
         $html = '<!doctype html><html><head><meta charset="utf-8"><title>Vouchers '.e($batch).'</title>'
-            .'<style>body{font-family:sans-serif;margin:12px}h1{font-size:16px}@media print{.noprint{display:none}}'
-            .'.grid{display:flex;flex-wrap:wrap}</style></head><body>'
+            .'<style>'
+            .'body{font-family:sans-serif;margin:12px;background:#f8fafc;}'
+            .'h1{font-size:16px;margin:0;}'
+            .'.header-bar{display:flex;align-items:center;gap:20px;background:white;padding:12px 20px;border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);margin-bottom:20px;}'
+            .'.btn{background:#005FA3;color:white;border:none;padding:8px 16px;font-weight:bold;border-radius:6px;cursor:pointer;}'
+            .'.btn:hover{background:#004C83;}'
+            .'.toggle-container{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#334155;cursor:pointer;}'
+            .'.grid{display:flex;flex-wrap:wrap;}'
+            .'.grayscale-mode{filter:grayscale(100%) !important;-webkit-filter:grayscale(100%) !important;}'
+            .'@media print{.noprint{display:none !important;}body{background:white;margin:0;}}'
+            .'</style></head><body>'
+            .'<div class="header-bar noprint">'
             .'<h1>Batch '.e($batch).' — '.$vouchers->count().' vouchers</h1>'
-            .'<button class="noprint" onclick="window.print()">Print</button>'
-            .'<div class="grid">'.$cards.'</div></body></html>';
+            .'<button class="btn" onclick="window.print()">Print</button>'
+            .'<label class="toggle-container">'
+            .'<input type="checkbox" id="bw-toggle" onchange="document.getElementById(\'card-grid\').classList.toggle(\'grayscale-mode\', this.checked)">'
+            .' Black & White Mode'
+            .'</label>'
+            .'</div>'
+            .'<div class="grid" id="card-grid">'.$cards.'</div></body></html>';
 
         return response($html, 200, ['Content-Type' => 'text/html']);
     }
@@ -265,8 +281,8 @@ class VoucherController extends Controller
             return $this->fail('Not found.', 404);
         }
 
-        if ($voucher->status !== 'new') {
-            return $this->fail('Only new vouchers can be marked as sold.', 422);
+        if ($voucher->status !== 'active') {
+            return $this->fail('Only active vouchers can be marked as sold.', 422);
         }
 
         $data = $request->validate([
@@ -291,8 +307,8 @@ class VoucherController extends Controller
 
         $voucher = Voucher::where('code', $data['code'])->firstOrFail();
 
-        if (! in_array($voucher->status, ['new', 'sold'], true)) {
-            return $this->fail('Voucher is already used, active, expired or disabled.', 422);
+        if (! in_array($voucher->status, ['active', 'sold'], true)) {
+            return $this->fail('Voucher is already used, expired or disabled.', 422);
         }
 
         if (! $voucher->data_gb || (float) $voucher->data_gb <= 0) {
@@ -309,7 +325,7 @@ class VoucherController extends Controller
             $u = User::whereKey($user->id)->lockForUpdate()->first();
 
             $voucher->update([
-                'status' => 'active',
+                'status' => 'used',
                 'activated_at' => now(),
                 'customer_username' => $u->username,
             ]);

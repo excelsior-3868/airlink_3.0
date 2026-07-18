@@ -20,19 +20,19 @@ class SyncVoucherStatus extends Command
 
     public function handle(): int
     {
-        // 1. Mark as active any new/sold voucher with an open accounting session.
+        // 1. Mark as used any active/sold voucher with an open accounting session.
         $activeUsernames = DB::table('radacct')->whereNull('acctstoptime')->distinct()->pluck('username');
         $activated = 0;
         foreach ($activeUsernames->chunk(1000) as $chunk) {
             $activated += Voucher::whereIn('username', $chunk)
-                ->whereIn('status', ['new', 'sold'])
-                ->update(['status' => 'active', 'activated_at' => now()]);
+                ->whereIn('status', ['active', 'sold'])
+                ->update(['status' => 'used', 'activated_at' => now()]);
         }
 
         // 2. Expire anything past its expiry that isn't already terminal.
         $expired = Voucher::whereNotNull('expires_at')
             ->where('expires_at', '<', now())
-            ->whereIn('status', ['new', 'sold', 'active'])
+            ->whereIn('status', ['active', 'sold', 'used'])
             ->update(['status' => 'expired']);
 
         $this->info("Sync complete: {$activated} activated, {$expired} expired.");

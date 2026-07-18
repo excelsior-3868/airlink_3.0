@@ -259,4 +259,96 @@ class RadiusController extends Controller
             'parsed' => $allClients
         ]);
     }
+
+    /** Fetch freeradius server log file contents. */
+    public function serverLog(Request $request): JsonResponse
+    {
+        $path = '/var/log/radius/radius.log';
+        if (!file_exists($path)) {
+            $path = '/var/log/freeradius/radius.log';
+        }
+
+        if (!file_exists($path) || !is_readable($path)) {
+            return $this->ok([
+                'exists' => false,
+                'path' => $path,
+                'content' => '',
+                'message' => 'FreeRADIUS log file not found or not readable.'
+            ]);
+        }
+
+        $limit = $request->integer('limit', 500);
+        $lines = [];
+        
+        try {
+            $file = new \SplFileObject($path, 'r');
+            $file->seek(PHP_INT_MAX);
+            $totalLines = $file->key();
+            
+            $start = max(0, $totalLines - $limit);
+            $file->seek($start);
+            
+            while (!$file->eof()) {
+                $line = $file->fgets();
+                if ($line !== false && trim($line) !== '') {
+                    $lines[] = trim($line);
+                }
+            }
+        } catch (Exception $e) {
+            return $this->fail('Failed reading log file: ' . $e->getMessage(), 500);
+        }
+
+        // Parse lines into structured log events
+        $parsedLogs = [];
+        foreach (array_reverse($lines) as $rawLine) {
+            // Regex to parse: Day Month Date Time Year : Module: (ID) Status: [Username] (client details)
+            // Example: Sat Jul 18 12:30:15 2026 : Auth: (12) Login OK: [ASMRWRHR] (from client localhost port 0)
+            $pattern = '/^([A-Za-z]{3}\s+[A-Za-z]{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s*:\s*([A-Za-z]+):\s*(?:\((\d+)\)\s+)?(.*?)(?::\s*\[(.*?)\])?\s*(\(from client.*?\))?$/';
+            if (preg_match($pattern, $rawLine, $matches)) {
+                $timestamp = $matches[1] ?? null;
+                $module = $matches[2] ?? null;
+                $id = ($matches[3] ?? '') ?: null;
+                $statusMsg = $matches[4] ?? '';
+                $username = ($matches[5] ?? '') ?: null;
+                $client = ($matches[6] ?? '') ?: null;
+
+                $type = 'info';
+                if (str_contains($statusMsg, 'Login OK') || str_contains($statusMsg, 'OK')) {
+                    $type = 'success';
+                } elseif (str_contains($statusMsg, 'Login incorrect') || str_contains($statusMsg, 'Reject') || str_contains($statusMsg, 'mismatch') || str_contains($statusMsg, 'not found')) {
+                    $type = 'reject';
+                }
+
+                $parsedLogs[] = [
+                    'raw' => $rawLine,
+                    'timestamp' => $timestamp,
+                    'module' => $module,
+                    'id' => $id,
+                    'status_message' => $statusMsg,
+                    'username' => $username,
+                    'client' => $client ? trim(str_replace(['(from client ', ')'], '', $client)) : null,
+                    'type' => $type
+                ];
+            } else {
+                $parsedLogs[] = [
+                    'raw' => $rawLine,
+                    'timestamp' => null,
+                    'module' => 'System',
+                    'id' => null,
+                    'status_message' => $rawLine,
+                    'username' => null,
+                    'client' => null,
+                    'type' => 'system'
+                ];
+            }
+        }
+
+        return $this->ok([
+            'exists' => true,
+            'path' => $path,
+            'total_lines' => $totalLines,
+            'content' => implode("\n", $lines),
+            'logs' => $parsedLogs
+        ]);
+    }
 }

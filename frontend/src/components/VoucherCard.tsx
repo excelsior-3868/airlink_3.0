@@ -69,62 +69,77 @@ export function VoucherCard(props: VoucherCardProps) {
         borderRadius: Math.round(W * 0.038),
         boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
         flexShrink: 0,
-        backgroundImage: `url(${bg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
         userSelect: 'none',
       }}
     >
-      {template.elements.map((el) => {
-        const translateX = el.align === 'right' ? '-100%' : el.align === 'center' ? '-50%' : '0'
+      <img
+        src={bg}
+        alt=""
+        draggable={false}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          zIndex: 0,
+          pointerEvents: 'none',
+        }}
+      />
 
-        if (el.field === 'image') {
-          if (!el.image_data) return null
+      <div style={{ position: 'relative', zIndex: 10, width: '100%', height: '100%' }}>
+        {template.elements.map((el) => {
+          const translateX = el.align === 'right' ? '-100%' : el.align === 'center' ? '-50%' : '0'
+
+          if (el.field === 'image') {
+            if (!el.image_data) return null
+            return (
+              <img
+                key={el.id}
+                src={el.image_data}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute',
+                  left: `${el.x}%`,
+                  top: `${el.y}%`,
+                  transform: `translateX(${translateX})`,
+                  width: `${(el.width || 20) * (W / 100)}px`,
+                  height: 'auto',
+                  filter: el.shadow ? 'drop-shadow(0 1px 4px rgba(0,0,0,0.45))' : 'none',
+                }}
+              />
+            )
+          }
+
+          const text = resolve(el, props)
+          if (!text) return null
           return (
-            <img
+            <div
               key={el.id}
-              src={el.image_data}
-              alt=""
-              draggable={false}
               style={{
                 position: 'absolute',
                 left: `${el.x}%`,
                 top: `${el.y}%`,
                 transform: `translateX(${translateX})`,
-                width: `${(el.width || 20) * (W / 100)}px`,
-                height: 'auto',
-                filter: el.shadow ? 'drop-shadow(0 1px 4px rgba(0,0,0,0.45))' : 'none',
+                whiteSpace: 'nowrap',
+                fontSize: el.font_size * scale,
+                color: el.color,
+                fontWeight: el.weight,
+                textAlign: el.align,
+                textDecoration: el.underline ? 'underline' : 'none',
+                letterSpacing: (el.letter_spacing || 0) * scale,
+                fontFamily: el.font === 'mono' ? 'monospace' : 'sans-serif',
+                lineHeight: 1.1,
+                textShadow: el.shadow ? '0 1px 4px rgba(0,0,0,0.45)' : 'none',
               }}
-            />
+            >
+              {text}
+            </div>
           )
-        }
-
-        const text = resolve(el, props)
-        if (!text) return null
-        return (
-          <div
-            key={el.id}
-            style={{
-              position: 'absolute',
-              left: `${el.x}%`,
-              top: `${el.y}%`,
-              transform: `translateX(${translateX})`,
-              whiteSpace: 'nowrap',
-              fontSize: el.font_size * scale,
-              color: el.color,
-              fontWeight: el.weight,
-              textAlign: el.align,
-              textDecoration: el.underline ? 'underline' : 'none',
-              letterSpacing: (el.letter_spacing || 0) * scale,
-              fontFamily: el.font === 'mono' ? 'monospace' : 'sans-serif',
-              lineHeight: 1.1,
-              textShadow: el.shadow ? '0 1px 4px rgba(0,0,0,0.45)' : 'none',
-            }}
-          >
-            {text}
-          </div>
-        )
-      })}
+        })}
+      </div>
     </div>
   )
 }

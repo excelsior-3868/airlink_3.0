@@ -203,15 +203,40 @@ class DashboardController extends Controller
         $voucherSales = $vouchers->sum('price');
         $packagesCount = \App\Models\InternetPlan::where('created_by', $seller->id)->count();
 
+        // Fetch reseller (parent) name
+        $reseller = $seller->parent_id ? User::find($seller->parent_id) : null;
+        $resellerName = $reseller ? ($reseller->name ?? $reseller->username) : null;
+
+        // Daily Sales Trend & Voucher Count for the last 14 days
+        $days = collect(range(13, 0))->map(fn($i) => now()->subDays($i)->toDateString());
+
+        $dailySalesRaw = Voucher::where('seller_id', $seller->id)
+            ->whereIn('status', ['sold', 'active', 'expired'])
+            ->where('sold_at', '>=', now()->subDays(13)->startOfDay())
+            ->selectRaw('DATE(sold_at) as date, SUM(price) as total, COUNT(*) as count')
+            ->groupBy('date')
+            ->pluck(null, 'date');
+
+        $dailyTrend = $days->map(function ($date) use ($dailySalesRaw) {
+            $row = $dailySalesRaw->get($date);
+            return [
+                'date'  => $date,
+                'sales' => $row ? (float) $row->total : 0,
+                'count' => $row ? (int)   $row->count : 0,
+            ];
+        })->values()->all();
+
         return [
             'role' => 'seller',
             'balances' => ['wallet' => $seller->wallet_balance, 'gb' => $seller->gb_balance, 'wallet_due' => $seller->wallet_due],
+            'reseller_name' => $resellerName,
             'counts' => [
                 'packages' => $packagesCount,
             ],
             'voucher_sales' => (float) $voucherSales,
             'retail_profit' => (float) $retailProfit,
             'vouchers' => $this->voucherBreakdown(Voucher::where('seller_id', $seller->id)),
+            'daily_trend' => $dailyTrend,
             'today' => [
                 'vouchers' => (clone $today)->count(),
                 'sales' => (float) $todaySales->sum('price'),
@@ -224,7 +249,7 @@ class DashboardController extends Controller
     {
         $byStatus = (clone $query)->select('status', DB::raw('count(*) as c'))->groupBy('status')->pluck('c', 'status');
         $total = (int) $byStatus->sum();
-        $used = (int) ($byStatus['active'] ?? 0) + (int) ($byStatus['expired'] ?? 0);
+        $used = (int) ($byStatus['used'] ?? 0) + (int) ($byStatus['expired'] ?? 0);
         $last7Days = (clone $query)->where('created_at', '>=', now()->subDays(7))->count();
 
         return [
