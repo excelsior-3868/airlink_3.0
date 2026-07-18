@@ -60,7 +60,7 @@ class VoucherController extends Controller
     /** Filtered, scoped voucher list. */
     public function index(Request $request): JsonResponse
     {
-        $q = $this->scopedQuery($request->user())->with(['plan:id,name', 'reseller:id,username', 'seller:id,username']);
+        $q = $this->scopedQuery($request->user())->with(['plan:id,name,package_type', 'batch:id,batch_code', 'reseller:id,username', 'seller:id,username']);
 
         if ($s = $request->query('status')) {
             $q->where('status', $s);

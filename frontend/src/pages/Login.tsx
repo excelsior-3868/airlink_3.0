@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Lock, User as UserIcon, Wifi, Eye, EyeOff, LogIn } from 'lucide-react'
+import { Lock, User as UserIcon, Wifi, Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { apiError } from '../lib/api'
 
@@ -104,7 +104,11 @@ export default function Login() {
             type="submit"
             className="w-full bg-gradient-to-r from-[#6b1414] to-[#2c2053] hover:from-[#7a1818] hover:to-[#382b63] text-white rounded-2xl py-3.5 px-4 font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-950/20 transition-all border-none mt-2 cursor-pointer"
           >
-            <LogIn size={18} />
+            {busy ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              <LogIn size={18} />
+            )}
             {busy ? 'Signing In...' : 'Sign In to Portal'}
           </motion.button>
         </form>

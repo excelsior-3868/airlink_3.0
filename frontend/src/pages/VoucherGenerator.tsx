@@ -35,6 +35,7 @@ export default function VoucherGenerator() {
       api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setAllResellers(r.data.data.data))
       api.get('/users', { params: { role: 'seller', per_page: 500 } }).then((r) => setAllSellers(r.data.data.data))
     } else if (user.role === 'reseller') {
+      setAllResellers([user])
       api.get('/users', { params: { role: 'seller', per_page: 100 } }).then((r) => setAllSellers(r.data.data.data))
     }
   }, [user])
@@ -96,31 +97,31 @@ export default function VoucherGenerator() {
 
   const filteredPlans = useMemo(() => {
     if (purchaseSource === 'wallet') {
-      // Wallet Balance: only Admin-created hotspot plans, no custom option
-      return plans.filter((p) => p.type === 'hotspot' && (!p.creator || p.creator.role === 'admin'))
+      // Wallet Balance: only Admin-created wallet hotspot plans, no custom option
+      return plans.filter((p) => p.type === 'hotspot' && p.package_type === 'wallet' && (!p.creator || p.creator.role === 'admin'))
     }
-    // GB Allocation: pre-existing custom plans (reseller/seller-created), not admin hotspot plans
-    return plans.filter((p) => p.creator && p.creator.role !== 'admin')
+    // GB Allocation: only GB packages
+    return plans.filter((p) => p.type === 'hotspot' && p.package_type === 'gb')
   }, [plans, purchaseSource])
 
   useEffect(() => {
     if (!gen.plan_id) return
 
     if (purchaseSource === 'gb') {
-      // GB: 'custom' is valid; reseller/seller plans are valid; admin hotspot plans are NOT
+      // GB: 'custom' is valid; only active GB hotspot plans are valid
       if (gen.plan_id === 'custom') return
       const isValidForGb = plans.some(
-        (p) => String(p.id) === String(gen.plan_id) && p.creator && p.creator.role !== 'admin'
+        (p) => String(p.id) === String(gen.plan_id) && p.type === 'hotspot' && p.package_type === 'gb'
       )
       if (!isValidForGb) setGen((prev: any) => ({ ...prev, plan_id: '' }))
     } else if (purchaseSource === 'wallet') {
-      // Wallet: 'custom' is NOT valid; only admin hotspot plans are valid
+      // Wallet: 'custom' is NOT valid; only admin wallet hotspot plans are valid
       if (gen.plan_id === 'custom') {
         setGen((prev: any) => ({ ...prev, plan_id: '' }))
         return
       }
       const isValidForWallet = plans.some(
-        (p) => String(p.id) === String(gen.plan_id) && (!p.creator || p.creator.role === 'admin')
+        (p) => String(p.id) === String(gen.plan_id) && p.type === 'hotspot' && p.package_type === 'wallet' && (!p.creator || p.creator.role === 'admin')
       )
       if (!isValidForWallet) setGen((prev: any) => ({ ...prev, plan_id: '' }))
     }
@@ -176,6 +177,11 @@ export default function VoucherGenerator() {
           selling_price: +gen.custom_selling_price || 0,
           status: 'active'
         }
+        if (gen.seller_id) {
+          payloadPlan.owner_id = +gen.seller_id
+        } else if (gen.reseller_id) {
+          payloadPlan.owner_id = +gen.reseller_id
+        }
         const { data: planRes } = await api.post('/plans', payloadPlan)
         finalPlanId = planRes.data.id
         // reload plans
@@ -204,7 +210,7 @@ export default function VoucherGenerator() {
 
   const selectOptions = useMemo(() => {
     const opts: SelectOption[] = []
-    if (user?.role === 'admin') {
+    if (user?.role === 'admin' || user?.role === 'reseller') {
       allResellers.forEach((r) => {
         opts.push({
           value: `reseller-${r.id}`,
@@ -342,16 +348,11 @@ export default function VoucherGenerator() {
                   ...filteredPlans.map((p) => ({
                     value: String(p.id),
                     label: `${p.name}${p.data_gb ? ` — ${gb(p.data_gb)}` : ''}`,
-                    badge: (() => {
-                      const creator = p.creator
-                      if (!creator || creator.role === 'admin') {
-                        return undefined
-                      }
-                      if (creator.role === 'reseller') {
-                        return <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full shrink-0">Reseller</span>
-                      }
-                      return <span className="text-[10px] bg-amber-50 text-amber-600 font-bold px-2 py-0.5 rounded-full shrink-0">Seller</span>
-                    })()
+                    badge: p.package_type === 'gb' ? (
+                      <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-full shrink-0">GB Package</span>
+                    ) : (
+                      <span className="text-[10px] bg-sky-50 text-sky-600 font-bold px-2 py-0.5 rounded-full shrink-0">Wallet Package</span>
+                    )
                   }))
                 ]}
               />

@@ -37,7 +37,7 @@ const NAV: NavItem[] = [
   { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500', perm: 'view_sellers' },
   { to: '/wallet', label: 'Wallet Allocation', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500', perm: 'wallet_load' },
   { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500', perm: 'allocate_gb' },
-  { to: '/vouchers', label: 'Generate Vouchers', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
+  { to: '/vouchers', label: 'Voucher Sales', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'view_transactions' },
   { to: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500', perm: 'reports' },
   {

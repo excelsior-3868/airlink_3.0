@@ -97,6 +97,14 @@
     transition: all 0.15s ease; outline: none;
   }
   .input:focus { border-color: hsl(var(--primary)); box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+  .no-spinners::-webkit-outer-spin-button,
+  .no-spinners::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spinners {
+    -moz-appearance: textfield;
+  }
 
   .app-sidebar-panel {
     border-radius: 34px;
@@ -142,3 +150,49 @@
     animation: progressSlide 1.6s ease-in-out infinite;
   }
 }
+
+@media print {
+  #root {
+    display: none !important;
+  }
+  html, body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .print-area {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print-cards-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 15px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .print-card-wrapper {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: flex !important;
+    justify-content: center !important;
+    margin-bottom: 12px !important;
+  }
+}
+
+@media screen {
+  .print-area {
+    display: none !important;
+  }
+}
+

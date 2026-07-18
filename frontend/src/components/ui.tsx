@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { ReactNode, useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
 import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search } from 'lucide-react'
@@ -109,12 +110,10 @@ export function PageTitle({ title, subtitle, action, icon }: { title: string; su
         {/* Wallet & GB Balance glass-badges */}
         {user && (
           <div className="flex items-center gap-2.5 bg-white/70 backdrop-blur-md border border-white/80 rounded-2xl p-2 px-3.5 shadow-sm text-xs select-none">
-            {user.role !== 'reseller' && (
-              <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
-                <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
+              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
+              <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
+            </div>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">GB:</span>
               <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
@@ -166,7 +165,8 @@ export function Modal({
   subtitle,
   icon,
   children,
-  bodyClassName = 'overflow-y-auto max-h-[calc(85vh-8rem)]'
+  bodyClassName = 'overflow-y-auto max-h-[calc(85vh-8rem)]',
+  widthClassName = 'max-w-2xl'
 }: {
   open: boolean;
   onClose: () => void;
@@ -175,16 +175,22 @@ export function Modal({
   icon?: ReactNode;
   children: ReactNode;
   bodyClassName?: string;
+  widthClassName?: string;
 }) {
+  const backdropMouseDown = useRef(false)
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-sm animate-fade-in"
+      onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentTarget }}
+      onMouseUp={(e) => { if (backdropMouseDown.current && e.target === e.currentTarget) onClose(); backdropMouseDown.current = false }}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="bg-white w-full max-w-2xl rounded-[28px] relative shadow-2xl border border-slate-100 flex flex-col overflow-visible"
-        onClick={(e) => e.stopPropagation()}
+        className={`bg-white w-full ${widthClassName} rounded-[28px] relative shadow-2xl border border-slate-100 flex flex-col overflow-visible`}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-white rounded-t-[28px] select-none">
@@ -257,6 +263,30 @@ export function CustomSelect({
   const ref = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
+
+  const updateCoords = () => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect()
+      setCoords({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (open) {
+      updateCoords()
+      window.addEventListener('resize', updateCoords)
+      window.addEventListener('scroll', updateCoords, true)
+    }
+    return () => {
+      window.removeEventListener('resize', updateCoords)
+      window.removeEventListener('scroll', updateCoords, true)
+    }
+  }, [open])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -345,8 +375,17 @@ export function CustomSelect({
       </button>
 
       {/* Options Dropdown list */}
-      {open && (
-        <div className="absolute left-0 mt-1.5 w-full min-w-[200px] bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 flex flex-col overflow-hidden">
+      {open && createPortal(
+        <div 
+          style={{
+            position: 'absolute',
+            top: coords.top + 6,
+            left: coords.left,
+            width: coords.width,
+            minWidth: 200
+          }}
+          className="bg-white border border-slate-200/80 rounded-2xl shadow-xl z-[9999] flex flex-col overflow-hidden"
+        >
           {searchable && (
             <div className="p-2.5 border-b border-slate-100 bg-white z-10 flex items-center gap-1.5 shrink-0">
               <Search size={14} className="text-slate-400 shrink-0 ml-1.5" />
@@ -399,7 +438,8 @@ export function CustomSelect({
               <div className="text-xs text-slate-400 py-4 text-center">No matches found</div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

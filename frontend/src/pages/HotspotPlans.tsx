@@ -146,6 +146,7 @@ export default function HotspotPlans() {
               <tr>
                 <th>Name</th>
                 <th>Type</th>
+                <th>Package Type</th>
                 <th>Bandwidth</th>
                 <th>Data</th>
                 <th>Validity</th>
@@ -171,6 +172,11 @@ export default function HotspotPlans() {
                 >
                   <td className="font-semibold">{p.name}</td>
                   <td className="capitalize">{p.plan_type}</td>
+                  <td>
+                    <Pill tone={p.package_type === 'gb' ? 'success' : 'info'}>
+                      {p.package_type === 'gb' ? 'GB Package' : 'Wallet Package'}
+                    </Pill>
+                  </td>
                   <td>{p.bandwidth || '—'}</td>
                   <td>{p.data_gb ? gb(p.data_gb) : '—'}</td>
                   <td>{p.validity_days}d</td>

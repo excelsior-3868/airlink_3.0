@@ -1,6 +1,6 @@
 import { useEffect, useState, Fragment } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, Percent, Coins, PlusCircle, Power } from 'lucide-react'
+import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, Percent, Coins, PlusCircle, Power, Eye, EyeOff } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -12,7 +12,9 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const [page, setPage] = useState(1)
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
+  const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', confirm_password: '', parent_id: '', gb_rate: '' })
+  const [showPw, setShowPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
   const [fundUser, setFundUser] = useState<any>(null)
   const [fund, setFund] = useState({ amount: '', gb_amount: '', gb_paid: '' })
   const [collectUser, setCollectUser] = useState<any>(null)
@@ -160,17 +162,24 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   }
 
   const saveUser = async () => {
+    if (form.password && form.password !== form.confirm_password) {
+      setErr('Passwords do not match.')
+      return
+    }
     setBusy(true)
     setErr('')
     try {
       const pid = role === 'seller' ? (user?.role === 'reseller' ? user.id : form.parent_id) : user!.id
       const payload = { ...form }
+      delete payload.confirm_password
       if (user?.role !== 'admin') {
         delete payload.gb_rate
       }
       await api.post(`/${role}s`, { ...payload, parent_id: pid })
       setCreateOpen(false)
-      setForm({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
+      setForm({ name: '', username: '', email: '', phone: '', password: '', confirm_password: '', parent_id: '', gb_rate: '' })
+      setShowPw(false)
+      setShowConfirmPw(false)
       load()
     } catch (e) {
       setErr(apiError(e))
@@ -189,11 +198,14 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
     setErr('')
     try {
       if (fund.amount) await api.post('/wallet/load', { user_id: fundUser.id, amount: +fund.amount })
-      if (fund.gb_amount) await api.post('/gb/allocate', {
-        user_id: fundUser.id,
-        gb_amount: +fund.gb_amount,
-        paid_amount: fund.gb_paid ? +fund.gb_paid : 0,
-      })
+      if (fund.gb_amount) {
+        const gbTotal = +fund.gb_amount * +(fundUser?.gb_rate || 0)
+        await api.post('/gb/allocate', {
+          user_id: fundUser.id,
+          gb_amount: +fund.gb_amount,
+          paid_amount: fund.gb_paid ? Math.min(+fund.gb_paid, gbTotal) : 0,
+        })
+      }
       setFundUser(null); setFund({ amount: '', gb_amount: '', gb_paid: '' }); setExpandedUserId(null); setHistoryData([]); load(); refresh()
     } catch (e) { setErr(apiError(e)) } finally { setBusy(false) }
   }
@@ -471,9 +483,51 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               </div>
             )}
 
-            <div className="md:col-span-2">
+            <div>
               <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Password</label>
-              <input className="input" type="password" placeholder="••••••••••••" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showPw ? 'text' : 'password'}
+                  placeholder="••••••••••••"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPw(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Confirm Password</label>
+              <div className="relative">
+                <input
+                  className={`input pr-10 ${form.confirm_password && form.confirm_password !== form.password ? 'border-red-400 focus:border-red-500' : ''}`}
+                  type={showConfirmPw ? 'text' : 'password'}
+                  placeholder="••••••••••••"
+                  value={form.confirm_password}
+                  onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowConfirmPw(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {form.confirm_password && form.confirm_password !== form.password && (
+                <p className="text-xs text-red-500 font-semibold mt-1">Passwords do not match</p>
+              )}
             </div>
           </div>
 
@@ -485,11 +539,15 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             </button>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              className="btn-primary flex items-center gap-2 py-2.5 px-6 rounded-2xl font-bold shadow-md transition-all"
+              className="btn-primary flex items-center justify-center gap-2 py-2.5 px-6 rounded-2xl font-bold shadow-md transition-all"
               disabled={busy}
               onClick={saveUser}
             >
-              <Save size={16} />
+              {busy ? (
+                <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
               {busy ? 'Saving...' : `Save ${label}`}
             </motion.button>
           </div>
@@ -498,33 +556,63 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
 
       <Modal open={!!fundUser} onClose={() => setFundUser(null)} title={`Load Wallet/GB — ${fundUser?.name || ''}`}>
         <div className="space-y-3">
+          <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Your Balance:</span>
+            <div className="flex gap-2">
+              <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-xs font-bold shadow-sm flex items-center gap-1">
+                <Wallet size={12} />
+                Wallet: {rs(user!.wallet_balance)}
+              </span>
+              <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100/80 text-xs font-bold shadow-sm flex items-center gap-1">
+                <Database size={12} />
+                GB Balance: {gb(user!.gb_balance)}
+              </span>
+            </div>
+          </div>
           <div className="relative">
             <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="input pl-10" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
+            <input className="input pl-10 no-spinners" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
           </div>
           <div className="relative">
             <Database size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="input pl-10" type="number" placeholder="GB amount" value={fund.gb_amount} onChange={(e) => setFund({ ...fund, gb_amount: e.target.value })} />
+            <input className="input pl-10 pr-28 no-spinners" type="number" placeholder="GB amount" value={fund.gb_amount} onChange={(e) => setFund({ ...fund, gb_amount: e.target.value })} />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+              @ {rs(fundUser?.gb_rate || 0)}/GB
+            </span>
           </div>
 
-          {+fund.gb_amount > 0 && (() => {
-            const total = +fund.gb_amount * +(fundUser?.gb_rate || 0)
+          {(+fund.gb_amount > 0 || +fund.amount > 0) && (() => {
+            const walletAmount = +fund.amount || 0
+            const gbTotal = (+fund.gb_amount || 0) * +(fundUser?.gb_rate || 0)
+            const total = gbTotal + walletAmount
             const paid = Math.min(+fund.gb_paid || 0, total)
             const due = Math.max(total - paid, 0)
             return (
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-3">
-                <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                   <span className="text-slate-500 font-semibold">Allocation cost</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800">{rs(total)}</span>
-                    <span className="text-[10px] text-rose-500 font-semibold">Due: {rs(due)}</span>
+                  <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-700">
+                    {walletAmount > 0 && (
+                      <>
+                        <span className="text-slate-500 font-normal">Wallet:</span>
+                        <span className="text-emerald-600 font-bold">{rs(walletAmount)}</span>
+                      </>
+                    )}
+                    {walletAmount > 0 && gbTotal > 0 && <span className="text-slate-400 font-normal mx-0.5">+</span>}
+                    {gbTotal > 0 && (
+                      <>
+                        <span className="text-slate-500 font-normal">GB:</span>
+                        <span className="text-purple-600 font-bold">{rs(gbTotal)}</span>
+                      </>
+                    )}
+                    <span className="text-slate-400 font-normal mx-0.5">=</span>
+                    <span className="font-extrabold text-sm px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100/50 shadow-sm">{rs(total)}</span>
                   </div>
-                  <span className="text-[10px] text-slate-400">@ {rs(fundUser?.gb_rate)}/GB</span>
                 </div>
                 <div className="relative">
                   <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    className="input pl-10"
+                    className="input pl-10 no-spinners"
                     type="number"
                     min="0"
                     max={total}
@@ -541,14 +629,18 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               </div>
             )
           })()}
-
-          <p className="text-xs text-muted-foreground">
-            Your balance: {rs(user!.wallet_balance)} · {gb(user!.gb_balance)}
-          </p>
           {err && <div className="pill danger w-full justify-center py-2">{err}</div>}
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-ghost" onClick={() => setFundUser(null)}>Cancel</button>
-            <motion.button whileTap={{ scale: 0.95 }} className="btn-primary" disabled={busy} onClick={saveFund}>{busy ? 'Processing…' : 'Load'}</motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn-primary flex items-center justify-center gap-2"
+              disabled={busy}
+              onClick={saveFund}
+            >
+              {busy && <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
+              {busy ? 'Processing…' : 'Load'}
+            </motion.button>
           </div>
         </div>
       </Modal>
@@ -558,7 +650,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">GB Rate (Rs per GB)</label>
             <input
-              className="input"
+              className="input no-spinners"
               type="number"
               min="0.01"
               step="0.01"
@@ -569,7 +661,15 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           {err && <div className="pill danger w-full justify-center py-2">{err}</div>}
           <div className="flex justify-end gap-2 pt-2">
             <button className="btn-ghost" onClick={() => setRateUser(null)}>Cancel</button>
-            <motion.button whileTap={{ scale: 0.95 }} className="btn-primary" disabled={busy} onClick={saveRate}>{busy ? 'Saving…' : 'Save Rate'}</motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn-primary flex items-center justify-center gap-2"
+              disabled={busy}
+              onClick={saveRate}
+            >
+              {busy && <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
+              {busy ? 'Saving…' : 'Save Rate'}
+            </motion.button>
           </div>
         </div>
       </Modal>
@@ -595,7 +695,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               Payment Amount (Rs)
             </label>
             <input
-              className="input"
+              className="input no-spinners"
               type="number"
               min="0.01"
               step="0.01"
@@ -624,10 +724,11 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             <button className="btn-ghost" onClick={() => setCollectUser(null)}>Cancel</button>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              className="btn-primary"
+              className="btn-primary flex items-center justify-center gap-2"
               disabled={busy || !collectAmount || +collectAmount <= 0}
               onClick={savePayment}
             >
+              {busy && <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
               {busy ? 'Processing…' : 'Collect'}
             </motion.button>
           </div>

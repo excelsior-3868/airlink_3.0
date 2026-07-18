@@ -16,6 +16,8 @@ services:
       MARIADB_DATABASE: airlink
       MARIADB_USER: airlink
       MARIADB_PASSWORD: ${DB_PASSWORD:-airlink_pass}
+    ports:
+      - "127.0.0.1:3308:3306"
     volumes:
       - mariadb_prod_data:/var/lib/mysql
       - ./docker/mariadb/initdb.d:/docker-entrypoint-initdb.d:ro
@@ -122,11 +124,12 @@ services:
     container_name: airlink-prod-freeradius
     restart: unless-stopped
     ports:
-      - "${RADIUS_AUTH_PORT:-1812}:1812/udp"
-      - "${RADIUS_ACCT_PORT:-1813}:1813/udp"
+      - "${PROD_RADIUS_AUTH_PORT:-18121}:1812/udp"
+      - "${PROD_RADIUS_ACCT_PORT:-18131}:1813/udp"
     depends_on:
       mariadb:
         condition: service_healthy
 
 volumes:
   mariadb_prod_data:
+

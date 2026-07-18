@@ -77,7 +77,30 @@ class PlanController extends Controller
             }
         }
 
-        $data['created_by'] = $request->user()->id;
+        $creatorId = $request->user()->id;
+        if ($request->filled('owner_id')) {
+            $request->validate([
+                'owner_id' => ['integer', 'exists:users,id']
+            ]);
+            $ownerId = (int)$request->input('owner_id');
+            if ($request->user()->isAdmin()) {
+                $creatorId = $ownerId;
+            } elseif ($request->user()->isReseller()) {
+                $isSelf = $ownerId === $request->user()->id;
+                $isDownline = \App\Models\User::where('id', $ownerId)->where('parent_id', $request->user()->id)->exists();
+                if ($isSelf || $isDownline) {
+                    $creatorId = $ownerId;
+                } else {
+                    return $this->fail('You do not have permission to create a plan for this owner.', 403);
+                }
+            } else {
+                if ($ownerId !== $request->user()->id) {
+                    return $this->fail('You do not have permission to create a plan for this owner.', 403);
+                }
+            }
+        }
+        $data['created_by'] = $creatorId;
+        $data['package_type'] = $request->boolean('via_voucher') ? 'gb' : 'wallet';
 
         return $this->created(InternetPlan::create($data), 'Plan created.');
     }

@@ -137,4 +137,124 @@ class BandwidthAndPlanTest extends TestCase
         $response->assertJsonCount(1, 'data');
         $this->assertEquals('PPPOE Plan', $response->json('data.0.name'));
     }
+
+    public function test_admin_can_set_creator_to_any_owner(): void
+    {
+        (new \Database\Seeders\DatabaseSeeder())->run();
+        $reseller = $this->makeUser('reseller');
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Custom Reseller Plan',
+                'plan_type' => 'data',
+                'data_gb' => 10,
+                'validity_days' => 30,
+                'base_price' => 100,
+                'selling_price' => 150,
+                'status' => 'active',
+                'owner_id' => $reseller->id,
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertEquals($reseller->id, $response->json('data.created_by'));
+    }
+
+    public function test_reseller_can_set_creator_to_themselves_or_their_sellers(): void
+    {
+        (new \Database\Seeders\DatabaseSeeder())->run();
+        $reseller = $this->makeUser('reseller');
+        $downlineSeller = $this->makeUser('seller', ['parent_id' => $reseller->id]);
+
+        // Reseller setting it to their seller
+        $response = $this->actingAs($reseller, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Custom Seller Plan',
+                'plan_type' => 'data',
+                'data_gb' => 5,
+                'validity_days' => 30,
+                'base_price' => 50,
+                'selling_price' => 70,
+                'status' => 'active',
+                'owner_id' => $downlineSeller->id,
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertEquals($downlineSeller->id, $response->json('data.created_by'));
+
+        // Reseller setting it to themselves
+        $response2 = $this->actingAs($reseller, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Custom Self Plan',
+                'plan_type' => 'data',
+                'data_gb' => 5,
+                'validity_days' => 30,
+                'base_price' => 50,
+                'selling_price' => 70,
+                'status' => 'active',
+                'owner_id' => $reseller->id,
+            ]);
+
+        $response2->assertStatus(201);
+        $this->assertEquals($reseller->id, $response2->json('data.created_by'));
+    }
+
+    public function test_reseller_cannot_set_creator_to_unauthorized_owners(): void
+    {
+        (new \Database\Seeders\DatabaseSeeder())->run();
+        $reseller = $this->makeUser('reseller');
+        $otherSeller = $this->makeUser('seller'); // parent is not $reseller
+
+        $response = $this->actingAs($reseller, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Invalid Plan',
+                'plan_type' => 'data',
+                'data_gb' => 5,
+                'validity_days' => 30,
+                'base_price' => 50,
+                'selling_price' => 70,
+                'status' => 'active',
+                'owner_id' => $otherSeller->id,
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_seller_cannot_set_creator_to_anyone_else(): void
+    {
+        (new \Database\Seeders\DatabaseSeeder())->run();
+        $otherSeller = $this->makeUser('seller');
+
+        $response = $this->actingAs($this->seller, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Invalid Plan',
+                'plan_type' => 'data',
+                'data_gb' => 5,
+                'validity_days' => 30,
+                'base_price' => 50,
+                'selling_price' => 70,
+                'status' => 'active',
+                'owner_id' => $otherSeller->id,
+            ]);
+
+        $response->assertStatus(403);
+    }
+
+    public function test_non_existent_owner_id_fails_validation(): void
+    {
+        (new \Database\Seeders\DatabaseSeeder())->run();
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/plans', [
+                'name' => 'Invalid Plan',
+                'plan_type' => 'data',
+                'data_gb' => 5,
+                'validity_days' => 30,
+                'base_price' => 50,
+                'selling_price' => 70,
+                'status' => 'active',
+                'owner_id' => 9999,
+            ]);
+
+        $response->assertStatus(422);
+    }
 }
