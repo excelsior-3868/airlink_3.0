@@ -11,37 +11,14 @@ import FundModal from '../components/FundModal'
 const tone: Record<string, string> = { allocate: 'success', deduct: 'danger', refund: 'info', opening: 'secondary' }
 
 export default function Gb() {
-  const { user, refresh } = useAuth()
+  const { user } = useAuth()
   const [page, setPage] = useState(1)
   const [fundOpen, setFundOpen] = useState(false)
-
-  // Redeem state
-  const [redeemCode, setRedeemCode] = useState('')
-  const [redeeming, setRedeeming] = useState(false)
-  const [message, setMessage] = useState('')
-  const [err, setErr] = useState('')
 
   const { data, refetch } = useQuery(
     `gb/transactions?page=${page}`,
     () => api.get('/gb/transactions', { params: { page } }).then((r) => r.data.data),
   )
-  const loadData = refetch
-
-  const handleRedeem = async () => {
-    setRedeeming(true); setErr(''); setMessage('')
-    try {
-      const { data: res } = await api.post('/vouchers/redeem', { code: redeemCode })
-      setMessage(res.message)
-      setRedeemCode('')
-      refresh() // Update user context balances
-      loadData() // Reload transaction log
-      invalidateCache('dashboard'); invalidateCache('vouchers')
-    } catch (e: any) {
-      setErr(e.response?.data?.message || 'Failed to redeem voucher.')
-    } finally {
-      setRedeeming(false)
-    }
-  }
 
   return (
     <div>
@@ -60,35 +37,8 @@ export default function Gb() {
           )
         }
       />
-      <div className="grid sm:grid-cols-2 gap-4 mb-6">
+      <div className="max-w-xs mb-6">
         <StatCard label="Current GB Balance" value={gb(user!.gb_balance)} icon={<Database size={22} />} />
-        
-        {user?.role !== 'admin' && (
-          <GlassCard className="!p-4 flex flex-col justify-between min-h-[100px]">
-            <div>
-              <h4 className="text-xs font-semibold text-slate-500 uppercase">Redeem Voucher Card</h4>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Consume a voucher card to add data quota to your account</p>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <input 
-                className="input !py-1.5" 
-                placeholder="Enter voucher code" 
-                value={redeemCode} 
-                onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
-                disabled={redeeming}
-              />
-              <button 
-                className="btn-primary !py-1.5 whitespace-nowrap" 
-                disabled={redeeming || !redeemCode}
-                onClick={handleRedeem}
-              >
-                {redeeming ? 'Redeeming…' : 'Redeem'}
-              </button>
-            </div>
-            {message && <p className="text-xs text-emerald-600 font-semibold mt-2">{message}</p>}
-            {err && <p className="text-xs text-rose-500 font-semibold mt-2">{err}</p>}
-          </GlassCard>
-        )}
       </div>
 
       <GlassCard className="!p-0 overflow-hidden">

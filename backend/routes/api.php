@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\VoucherTemplateController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\SeasonController;
 use Illuminate\Support\Facades\Route;
 
 // --- Public ---
@@ -92,15 +93,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/permissions', [PermissionController::class, 'index']);
     Route::post('/permissions', [PermissionController::class, 'update'])->middleware('role:admin');
 
-    // Voucher card design template — read for previews, save is admin only.
+    // Voucher card design template — read, save, and reset.
     Route::get('/voucher-template', [VoucherTemplateController::class, 'index']);
-    Route::post('/voucher-template', [VoucherTemplateController::class, 'save'])->middleware('role:admin');
+    Route::post('/voucher-template', [VoucherTemplateController::class, 'save']);
+    Route::delete('/voucher-template', [VoucherTemplateController::class, 'reset']);
 
     // NAS / router management (admin only). List is readable by all authed users.
     Route::get('/nas', [NasController::class, 'index']);
 
     // Voucher Diagnostics log — readable by all authenticated roles.
     Route::get('/radius/server-log', [RadiusController::class, 'serverLog']);
+
+    // Seasons lookup readable by all authenticated roles
+    Route::get('/seasons', [SeasonController::class, 'index']);
 
     Route::middleware('role:admin')->group(function () {
         Route::post('/admin/system-load', [UserController::class, 'systemLoad']);
@@ -114,5 +119,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/radius/auth-logs', [RadiusController::class, 'authLogs']);
         Route::get('/radius/clients-config', [RadiusController::class, 'clientsConfig']);
         Route::post('/radius/test-auth', [RadiusController::class, 'testAuth']);
+
+        // Seasons management (admin only)
+        Route::put('/seasons/{season}', [SeasonController::class, 'update']);
     });
 });

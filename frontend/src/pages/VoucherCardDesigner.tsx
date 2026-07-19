@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Save, CheckCircle, Image as ImageIcon, Plus, Trash2, RotateCcw, Palette } from 'lucide-react'
+import { Save, CheckCircle, Image as ImageIcon, Plus, Trash2, RotateCcw, Palette, Users as Users2, UserCheck, ShieldCheck } from 'lucide-react'
 import { api, apiError } from '../lib/api'
-import { GlassCard, PageTitle, EmptyState } from '../components/ui'
+import { useAuth } from '../lib/auth'
+import { GlassCard, PageTitle, EmptyState, CustomSelect, SelectOption } from '../components/ui'
 import { CardElement, CardTemplate } from '../components/VoucherCard'
 
 const CANVAS_W = 640
@@ -35,7 +36,17 @@ function resolvePreview(el: CardElement): string {
 }
 
 export default function VoucherCardDesigner() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
+  // Admin-only: list of resellers + sellers to design for.
+  const [users, setUsers] = useState<{ id: number; name: string; username: string; role: string }[]>([])
+  const [targetUserId, setTargetUserId] = useState<number | null>(null)
+  const targetUser = users.find((u) => u.id === targetUserId) || null
+
   const [tpl, setTpl] = useState<CardTemplate | null>(null)
+  const [isCustom, setIsCustom] = useState(false)
+  const [reverting, setReverting] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -44,12 +55,30 @@ export default function VoucherCardDesigner() {
   const canvasRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
 
+  // Fetch full user list for admin once on mount.
   useEffect(() => {
-    api.get('/voucher-template')
-      .then((r) => setTpl(r.data.data))
+    if (!isAdmin) return
+    api.get('/users', { params: { per_page: 200 } })
+      .then((r) => setUsers((r.data.data?.data ?? r.data.data ?? []).filter((u: any) => u.role !== 'admin')))
+      .catch(() => {})
+  }, [isAdmin])
+
+  // Load template whenever the target user changes.
+  useEffect(() => {
+    setLoading(true)
+    setTpl(null)
+    setSelectedId(null)
+    setErr('')
+    setMsg('')
+    const params = targetUserId ? { user_id: targetUserId } : {}
+    api.get('/voucher-template', { params })
+      .then((r) => {
+        setTpl(r.data.data)
+        setIsCustom(!!r.data.data.is_custom)
+      })
       .catch((e) => setErr(apiError(e)))
       .finally(() => setLoading(false))
-  }, [])
+  }, [targetUserId])
 
   const selected = tpl?.elements.find((e) => e.id === selectedId) || null
 
@@ -122,9 +151,32 @@ export default function VoucherCardDesigner() {
     if (!tpl) return
     setSaving(true); setErr(''); setMsg('')
     try {
-      await api.post('/voucher-template', tpl)
-      setMsg('Voucher card design saved. New cards and prints will use it.')
+      const payload: any = { ...tpl }
+      // When admin is designing for a specific user, include target_user_id.
+      if (isAdmin && targetUserId) payload.target_user_id = targetUserId
+      await api.post('/voucher-template', payload)
+      setMsg('Voucher card design saved.')
+      const params = targetUserId ? { user_id: targetUserId } : {}
+      const r = await api.get('/voucher-template', { params })
+      setTpl(r.data.data)
+      setIsCustom(!!r.data.data.is_custom)
     } catch (e) { setErr(apiError(e)) } finally { setSaving(false) }
+  }
+
+  const revertToDefault = async () => {
+    const who = targetUser ? `${targetUser.name}'s` : 'your'
+    if (!window.confirm(`Are you sure you want to revert ${who} custom design back to the admin default?`)) return
+    setReverting(true); setErr(''); setMsg('')
+    try {
+      const params = isAdmin && targetUserId ? { user_id: targetUserId } : {}
+      await api.delete('/voucher-template', { params })
+      setMsg('Custom design removed. Reverted to default template.')
+      const getParams = targetUserId ? { user_id: targetUserId } : {}
+      const r = await api.get('/voucher-template', { params: getParams })
+      setTpl(r.data.data)
+      setIsCustom(!!r.data.data.is_custom)
+      setSelectedId(null)
+    } catch (e) { setErr(apiError(e)) } finally { setReverting(false) }
   }
 
   if (loading) return <EmptyState>Loading voucher card designer…</EmptyState>
@@ -134,18 +186,88 @@ export default function VoucherCardDesigner() {
   const canvasH = Math.round(CANVAS_W * (tpl.height / tpl.width))
   const bg = tpl.background_data || '/voucher-card-bg.png'
 
+  // Flat list sorted by name — role shown as a badge on the right, no username or grouping.
+  const userOptions: SelectOption[] = [
+    { value: '', label: 'Default Design (All Users)' },
+    ...[...users]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(u => ({
+        value: u.id,
+        label: u.name,
+        badge: (
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+            u.role === 'reseller'
+              ? 'bg-violet-100 text-violet-700'
+              : 'bg-amber-100 text-amber-700'
+          }`}>
+            {u.role === 'reseller' ? 'Reseller' : 'Seller'}
+          </span>
+        ),
+      })),
+  ]
+
+  const designingForLabel = targetUser
+    ? `${targetUser.name} (${targetUser.role === 'reseller' ? 'Reseller' : 'Seller'})`
+    : isAdmin ? 'Default (All Users)' : ''
+
   return (
     <div>
       <PageTitle
         title="Voucher Card Designer"
-        subtitle="Upload artwork, drag text into place, and set the card size"
+        subtitle={targetUser ? `Designing for: ${designingForLabel}` : 'Upload artwork, drag text into place, and set the card size'}
         icon={<Palette size={22} className="text-rose-600" />}
         action={
-          <motion.button whileTap={{ scale: 0.95 }} className="btn-primary flex items-center gap-2" disabled={saving} onClick={save}>
-            <Save size={16} /> {saving ? 'Saving…' : 'Save Design'}
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {/* Revert button: admin can revert a user's custom, non-admin can revert own */}
+            {((!isAdmin && isCustom) || (isAdmin && targetUserId && isCustom)) && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="btn-ghost !border-rose-200 !text-rose-600 hover:!bg-rose-50 flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-normal"
+                disabled={saving || reverting}
+                onClick={revertToDefault}
+              >
+                <RotateCcw size={16} /> {reverting ? 'Reverting...' : 'Revert to Default'}
+              </motion.button>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              className="btn-primary flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-normal"
+              disabled={saving || reverting}
+              onClick={save}
+            >
+              <Save size={16} /> {saving ? 'Saving...' : 'Save Design'}
+            </motion.button>
+          </div>
         }
       />
+
+      {/* ── Admin: design on behalf of a user ── */}
+      {isAdmin && (
+        <div className="mb-5 p-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 text-blue-700">
+            <ShieldCheck size={18} />
+            <span className="text-sm font-semibold">Admin Design Mode</span>
+          </div>
+          <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+            <Users2 size={15} className="text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-500 whitespace-nowrap">Designing for:</span>
+            <CustomSelect
+              className="flex-1"
+              value={targetUserId ?? ''}
+              onChange={(val) => setTargetUserId(val === '' ? null : Number(val))}
+              options={userOptions}
+              placeholder="Default Design (All Users)"
+              searchable
+            />
+          </div>
+          {targetUser && (
+            <div className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-100 rounded-lg px-3 py-1.5">
+              <UserCheck size={13} />
+              <span>{isCustom ? 'Has custom design' : 'Using default design'}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {msg && <div className="mb-4 p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl flex items-center gap-2 text-sm font-semibold"><CheckCircle size={16} /> {msg}</div>}
       {err && <div className="mb-4 p-3 bg-rose-50 text-rose-800 border border-rose-200 rounded-xl text-sm font-semibold">{err}</div>}

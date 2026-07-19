@@ -102,6 +102,31 @@ class ReportController extends Controller
         if ($to = $request->query('to')) {
             $q->whereDate('created_at', '<=', $to);
         }
+        if ($seasonId = $request->query('season_id')) {
+            $season = \App\Models\Season::find($seasonId);
+            if ($season) {
+                $sm = $season->start_month;
+                $sd = $season->start_day;
+                $em = $season->end_month;
+                $ed = $season->end_day;
+
+                $q->where(function ($query) use ($sm, $sd, $em, $ed) {
+                    if ($sm < $em || ($sm === $em && $sd <= $ed)) {
+                        $query->whereRaw("
+                            (MONTH(created_at) > ? OR (MONTH(created_at) = ? AND DAY(created_at) >= ?))
+                            AND
+                            (MONTH(created_at) < ? OR (MONTH(created_at) = ? AND DAY(created_at) <= ?))
+                        ", [$sm, $sm, $sd, $em, $em, $ed]);
+                    } else {
+                        $query->whereRaw("
+                            (MONTH(created_at) > ? OR (MONTH(created_at) = ? AND DAY(created_at) >= ?))
+                            OR
+                            (MONTH(created_at) < ? OR (MONTH(created_at) = ? AND DAY(created_at) <= ?))
+                        ", [$sm, $sm, $sd, $em, $em, $ed]);
+                    }
+                });
+            }
+        }
 
         return $q;
     }

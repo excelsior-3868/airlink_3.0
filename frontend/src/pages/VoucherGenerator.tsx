@@ -35,7 +35,7 @@ export default function VoucherGenerator() {
       api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setAllResellers(r.data.data.data))
       api.get('/users', { params: { role: 'seller', per_page: 500 } }).then((r) => setAllSellers(r.data.data.data))
     } else if (user.role === 'reseller') {
-      setAllResellers([user])
+      setAllResellers([])
       api.get('/users', { params: { role: 'seller', per_page: 100 } }).then((r) => setAllSellers(r.data.data.data))
     }
   }, [user])
@@ -211,7 +211,7 @@ export default function VoucherGenerator() {
   const selectOptions = useMemo(() => {
     const opts: SelectOption[] = []
     if (user?.role === 'admin' || user?.role === 'reseller') {
-      allResellers.forEach((r) => {
+      allResellers.filter((r) => r.id !== user?.id).forEach((r) => {
         opts.push({
           value: `reseller-${r.id}`,
           label: r.name,

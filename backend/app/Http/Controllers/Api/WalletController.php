@@ -13,9 +13,13 @@ class WalletController extends Controller
 {
     public function __construct(private WalletService $wallet) {}
 
-    /** Load/transfer money to a direct downline user. */
+    /** Load/transfer money to a direct downline user (Admin only). */
     public function load(Request $request): JsonResponse
     {
+        if (! $request->user()->isAdmin()) {
+            return $this->fail('Only Admins can load wallet balance.', 403);
+        }
+
         $data = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],

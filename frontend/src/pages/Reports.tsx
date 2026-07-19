@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Calendar, Sparkles, Sun, Leaf, Snowflake } from 'lucide-react'
 import { api } from '../lib/api'
 import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -11,12 +11,13 @@ export default function Reports() {
   const [filters, setFilters] = useState<any>({
     from: '', to: '', status: '',
     plan_id: '', reseller_id: '', seller_id: '',
-    code: '', batch: ''
+    code: '', batch: '', season_id: ''
   })
   const [appliedFilters, setAppliedFilters] = useState<any>({ ...filters })
   const [page, setPage] = useState(1)
 
   const { data: plans = [] } = useQuery<any[]>('reports/plans', () => api.get('/plans').then((r) => r.data.data))
+  const { data: seasons = [] } = useQuery<any[]>('reports/seasons', () => api.get('/seasons').then((r) => r.data.data))
   const { data: resellers = [] } = useQuery<any[]>('users/resellers', () => api.get('/users/resellers').then((r) => r.data.data.data), { enabled: user?.role === 'admin' })
   const { data: sellers = [] } = useQuery<any[]>('users/sellers', () => api.get('/users/sellers').then((r) => r.data.data.data), { enabled: user?.role === 'admin' || user?.role === 'reseller' })
 
@@ -32,6 +33,48 @@ export default function Reports() {
     () => api.get('/vouchers', { params: { ...appliedFilters, page } }).then((r) => r.data.data),
   )
 
+  const handleSeasonChange = (seasonId: any) => {
+    if (!seasonId) {
+      const updated = {
+        ...filters,
+        season_id: '',
+        from: '',
+        to: ''
+      }
+      setFilters(updated)
+      setPage(1)
+      setAppliedFilters(updated)
+      return
+    }
+
+    const season = seasons.find((s: any) => s.id === +seasonId)
+    if (season) {
+      const currentYear = new Date().getFullYear()
+      const sm = season.start_month.toString().padStart(2, '0')
+      const sd = season.start_day.toString().padStart(2, '0')
+      const em = season.end_month.toString().padStart(2, '0')
+      const ed = season.end_day.toString().padStart(2, '0')
+
+      const fromDate = `${currentYear}-${sm}-${sd}`
+      let toDate = ''
+      if (season.start_month > season.end_month) {
+        toDate = `${currentYear + 1}-${em}-${ed}`
+      } else {
+        toDate = `${currentYear}-${em}-${ed}`
+      }
+
+      const updated = {
+        ...filters,
+        season_id: seasonId,
+        from: fromDate,
+        to: toDate
+      }
+      setFilters(updated)
+      setPage(1)
+      setAppliedFilters(updated)
+    }
+  }
+
   const applyFilters = () => {
     setPage(1)
     setAppliedFilters({ ...filters })
@@ -41,7 +84,7 @@ export default function Reports() {
     const reset = {
       from: '', to: '', status: '',
       plan_id: '', reseller_id: '', seller_id: '',
-      code: '', batch: ''
+      code: '', batch: '', season_id: ''
     }
     setFilters(reset)
     setPage(1)
@@ -55,16 +98,46 @@ export default function Reports() {
       {/* Advanced Filters */}
       <GlassCard className="mb-4 space-y-3 relative z-10">
         {/* Row 1 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3">
+          <div className="md:col-span-3">
+            <label className="text-xs text-slate-500 block">Season</label>
+            <CustomSelect
+              className="w-full mt-1"
+              value={filters.season_id}
+              onChange={handleSeasonChange}
+              options={[
+                { value: '', label: 'All Seasons', icon: <Calendar size={14} className="text-slate-400" /> },
+                ...seasons.map((s: any) => {
+                  let Icon = Calendar
+                  let iconColor = 'text-slate-400'
+                  if (s.name === 'Spring') { Icon = Sparkles; iconColor = 'text-emerald-500'; }
+                  else if (s.name === 'Summer') { Icon = Sun; iconColor = 'text-amber-500'; }
+                  else if (s.name === 'Autumn') { Icon = Leaf; iconColor = 'text-orange-500'; }
+                  else if (s.name === 'Winter') { Icon = Snowflake; iconColor = 'text-sky-500'; }
+
+                  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const sm = MONTH_NAMES[s.start_month - 1] || ''
+                  const em = MONTH_NAMES[s.end_month - 1] || ''
+                  const duration = `(${sm} ${s.start_day}-${em} ${s.end_day})`
+
+                  return {
+                    value: s.id,
+                    label: `${s.name} ${duration}`,
+                    icon: <Icon size={14} className={iconColor} />
+                  }
+                })
+              ]}
+            />
+          </div>
+          <div className="md:col-span-2">
             <label className="text-xs font-semibold text-slate-500 block">From</label>
             <input type="date" className="input mt-1" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label className="text-xs font-semibold text-slate-500 block">To</label>
             <input type="date" className="input mt-1" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label className="text-xs font-semibold text-slate-500 block">Status</label>
             <CustomSelect
               className="w-full mt-1"
@@ -76,7 +149,7 @@ export default function Reports() {
               ]}
             />
           </div>
-          <div>
+          <div className="md:col-span-3">
             <label className="text-xs font-semibold text-slate-500 block">Package</label>
             <CustomSelect
               className="w-full mt-1"

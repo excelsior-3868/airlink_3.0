@@ -60,4 +60,17 @@ class WalletGbTest extends TestCase
             ->postJson('/api/gb/allocate', ['user_id' => $reseller->id, 'gb_amount' => 999])->assertStatus(422);
         $this->assertEquals(40, $admin->fresh()->gb_balance);
     }
+
+    public function test_reseller_cannot_load_seller_wallet(): void
+    {
+        $reseller = $this->makeUser('reseller', ['wallet_balance' => 1000]);
+        $seller = $this->makeUser('seller', ['parent_id' => $reseller->id, 'wallet_balance' => 100]);
+
+        $this->actingAs($reseller, 'sanctum')
+            ->postJson('/api/wallet/load', ['user_id' => $seller->id, 'amount' => 350])
+            ->assertStatus(403);
+
+        $this->assertEquals(1000, $reseller->fresh()->wallet_balance);
+        $this->assertEquals(100, $seller->fresh()->wallet_balance);
+    }
 }

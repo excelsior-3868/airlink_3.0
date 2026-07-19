@@ -242,6 +242,7 @@ export interface SelectOption {
   label: string;
   icon?: ReactNode;
   badge?: ReactNode;
+  group?: string;  // Optional group label for rendering section headers.
 }
 
 export function CustomSelect({
@@ -411,39 +412,50 @@ export function CustomSelect({
             </div>
           )}
           <div className="flex-1 p-1.5 flex flex-col gap-0.5 max-h-52 overflow-y-auto">
-            {filteredOptions.map((opt) => {
-              const isSelected = opt.value === value
-              return (
-                <button
-                  key={String(opt.value)}
-                  type="button"
-                  onClick={() => {
-                    onChange(opt.value)
-                    setOpen(false)
-                  }}
-                  className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-left ${
-                    isSelected ? 'bg-slate-50/50 text-[#003164]' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    {opt.icon && (
-                      <div className="shrink-0 flex items-center justify-center">
-                        {opt.icon}
+            {(() => {
+              let lastGroup: string | undefined = undefined
+              return filteredOptions.map((opt) => {
+                const isSelected = opt.value === value
+                const showGroupHeader = opt.group !== undefined && opt.group !== lastGroup
+                if (opt.group !== undefined) lastGroup = opt.group
+                return (
+                  <div key={String(opt.value)}>
+                    {showGroupHeader && (
+                      <div className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 select-none">
+                        {opt.group}
                       </div>
                     )}
-                    <span className="truncate">{opt.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {opt.badge}
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
-                        <Check size={12} className="text-[#003164]" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(opt.value)
+                        setOpen(false)
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-left ${
+                        isSelected ? 'bg-slate-50/50 text-[#003164]' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {opt.icon && (
+                          <div className="shrink-0 flex items-center justify-center">
+                            {opt.icon}
+                          </div>
+                        )}
+                        <span className="truncate">{opt.label}</span>
                       </div>
-                    )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {opt.badge}
+                        {isSelected && (
+                          <div className="w-5 h-5 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+                            <Check size={12} className="text-[#003164]" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
                   </div>
-                </button>
-              )
-            })}
+                )
+              })
+            })()}
             {filteredOptions.length === 0 && (
               <div className="text-xs text-slate-400 py-4 text-center">No matches found</div>
             )}

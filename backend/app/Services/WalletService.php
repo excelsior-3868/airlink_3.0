@@ -19,6 +19,9 @@ class WalletService
         if ($amount <= 0) {
             throw ValidationException::withMessages(['amount' => 'Amount must be greater than zero.']);
         }
+        if ($from->role !== 'admin') {
+            throw ValidationException::withMessages(['user_id' => 'Only Admins can load or transfer wallet balance.']);
+        }
         $isDirectChild = ($to->parent_id === $from->id);
         $isAdminFundingSeller = ($from->role === 'admin' && $to->role === 'seller');
 

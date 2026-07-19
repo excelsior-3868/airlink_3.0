@@ -24,7 +24,7 @@ class UserController extends Controller
             $query->where(fn ($q) => $q->where('username', 'like', "%$search%")->orWhere('name', 'like', "%$search%"));
         }
 
-        $users = $query->withCount('children')->orderByDesc('id')->paginate($request->integer('per_page', 20));
+        $users = $query->withCount(['children', 'vouchers'])->orderByDesc('id')->paginate($request->integer('per_page', 20));
 
         return $this->ok($users);
     }

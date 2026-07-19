@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   LayoutDashboard, Package, Users2, Store, Wallet as WalletIcon,
   Database, Ticket, BarChart3, LogOut, Wifi, Router, ShieldCheck, Shield,
-  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight, Menu, X, Terminal
+  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight, Menu, X, Terminal, Calendar
 } from 'lucide-react'
 import { Role, useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
@@ -36,7 +36,7 @@ const NAV: NavItem[] = [
   },
   { to: '/resellers', label: 'Resellers', icon: Users2, roles: ['admin'], color: 'text-purple-500', perm: 'view_resellers' },
   { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500', perm: 'view_sellers' },
-  { to: '/wallet', label: 'Wallet Allocation', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500', perm: 'wallet_load' },
+  { to: '/wallet', label: 'Wallet Allocation', icon: WalletIcon, roles: ['admin'], color: 'text-emerald-500', perm: 'wallet_load' },
   { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500', perm: 'allocate_gb' },
   { to: '/vouchers', label: 'Voucher Sales', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'view_transactions' },
@@ -45,18 +45,89 @@ const NAV: NavItem[] = [
   {
     label: 'Settings',
     icon: Shield,
-    roles: ['admin'],
+    roles: ['admin', 'reseller', 'seller'],
     color: 'text-slate-500',
-    perm: 'view_settings',
     children: [
       { to: '/settings/system-load', label: 'System Load', roles: ['admin'], icon: WalletIcon, color: 'text-emerald-500' },
-      { to: '/settings/voucher-card', label: 'Voucher Card', roles: ['admin'], icon: Ticket, color: 'text-rose-500' },
+      { to: '/settings/voucher-card', label: 'Voucher Card', roles: ['admin', 'reseller', 'seller'], icon: Ticket, color: 'text-rose-500' },
+      { to: '/settings/seasons', label: 'Season Duration', roles: ['admin'], icon: Calendar, color: 'text-amber-500' },
       { to: '/nas', label: 'NAS / Routers', roles: ['admin'], icon: Router, color: 'text-violet-500' },
       { to: '/permissions', label: 'Permissions', roles: ['admin'], icon: ShieldCheck, color: 'text-rose-600' },
       { to: '/logs', label: 'Login Logs', roles: ['admin'], icon: ShieldCheck, color: 'text-pink-500' },
     ]
   }
 ]
+
+interface NavListProps {
+  items: NavItem[];
+  location: any;
+  expanded: Record<string, boolean>;
+  toggleExpanded: (label: string) => void;
+  user: { role: Role; name: string };
+  can: (perm?: string) => boolean;
+  onNavigate?: () => void;
+}
+
+const NavList = ({ items, location, expanded, toggleExpanded, user, can, onNavigate }: NavListProps) => (
+  <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
+    {items.map((it) => {
+      if (it.children) {
+        const hasActiveChild = it.children.some((c) => location.pathname === c.to)
+        return (
+          <div key={it.label} className="flex flex-col">
+            <button
+              onClick={() => toggleExpanded(it.label)}
+              className={`app-sidebar-nav-item w-full flex items-center justify-between group ${
+                hasActiveChild ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
+                <span className="font-bold">{it.label}</span>
+              </div>
+              {expanded[it.label] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+            {expanded[it.label] && (
+              <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
+                {it.children
+                  .filter((c) => c.roles.includes(user.role) && can(c.perm))
+                  .map((c) => (
+                    <NavLink
+                      key={c.to}
+                      to={c.to}
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        `app-sidebar-nav-item text-sm group ${
+                          isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
+                        }`
+                      }
+                    >
+                      <c.icon size={16} className={`transition-transform group-hover:scale-110 ${c.color}`} />
+                      <span>{c.label}</span>
+                    </NavLink>
+                  ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+      return (
+        <NavLink
+          key={it.to}
+          to={it.to!}
+          end={it.to === '/'}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `app-sidebar-nav-item group ${isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'}`
+          }
+        >
+          <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
+          {it.label}
+        </NavLink>
+      )
+    })}
+  </nav>
+)
 
 export default function AppShell() {
   const { user, logout, can } = useAuth()
@@ -112,68 +183,6 @@ export default function AppShell() {
 
   const initials = user.name.split(' ').map((n) => n[0]).join('').slice(0, 2)
 
-  // Shared nav list — rendered in both the desktop sidebar and the mobile drawer.
-  const NavList = ({ onNavigate }: { onNavigate?: () => void }) => (
-    <nav className="flex flex-col gap-1 flex-1 overflow-y-auto pr-1">
-      {items.map((it) => {
-        if (it.children) {
-          const hasActiveChild = it.children.some((c) => location.pathname === c.to)
-          return (
-            <div key={it.label} className="flex flex-col">
-              <button
-                onClick={() => toggleExpanded(it.label)}
-                className={`app-sidebar-nav-item w-full flex items-center justify-between group ${
-                  hasActiveChild ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
-                  <span className="font-bold">{it.label}</span>
-                </div>
-                {expanded[it.label] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </button>
-              {expanded[it.label] && (
-                <div className="pl-4 flex flex-col gap-1 mt-1 border-l border-slate-100 ml-4">
-                  {it.children
-                    .filter((c) => c.roles.includes(user.role) && can(c.perm))
-                    .map((c) => (
-                      <NavLink
-                        key={c.to}
-                        to={c.to}
-                        onClick={onNavigate}
-                        className={({ isActive }) =>
-                          `app-sidebar-nav-item text-sm group ${
-                            isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'
-                          }`
-                        }
-                      >
-                        <c.icon size={16} className={`transition-transform group-hover:scale-110 ${c.color}`} />
-                        <span>{c.label}</span>
-                      </NavLink>
-                    ))}
-                </div>
-              )}
-            </div>
-          )
-        }
-        return (
-          <NavLink
-            key={it.to}
-            to={it.to!}
-            end={it.to === '/'}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `app-sidebar-nav-item group ${isActive ? 'app-sidebar-nav-item-active' : 'app-sidebar-nav-item-idle'}`
-            }
-          >
-            <it.icon size={18} className={`transition-transform group-hover:scale-110 ${it.color}`} />
-            {it.label}
-          </NavLink>
-        )
-      })}
-    </nav>
-  )
-
   return (
     <div className="min-h-screen bg-background md:p-4 lg:p-5 md:flex md:gap-4">
       {/* Desktop Sidebar */}
@@ -186,7 +195,14 @@ export default function AppShell() {
           </div>
         </div>
 
-        <NavList />
+        <NavList
+          items={items}
+          location={location}
+          expanded={expanded}
+          toggleExpanded={toggleExpanded}
+          user={user}
+          can={can}
+        />
 
         {/* Profile Card Dropdown Container */}
         <div ref={profileRef} className="relative mt-3 pt-3 border-t border-slate-100">
@@ -307,7 +323,15 @@ export default function AppShell() {
                 </button>
               </div>
 
-              <NavList onNavigate={() => setDrawerOpen(false)} />
+              <NavList
+                items={items}
+                location={location}
+                expanded={expanded}
+                toggleExpanded={toggleExpanded}
+                user={user}
+                can={can}
+                onNavigate={() => setDrawerOpen(false)}
+              />
 
               {/* Drawer profile actions */}
               <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col gap-2">

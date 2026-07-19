@@ -3,24 +3,48 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class VoucherCardTemplate extends Model
 {
-    protected $fillable = ['width', 'height', 'background_data', 'elements'];
+    protected $fillable = ['user_id', 'width', 'height', 'background_data', 'elements'];
 
     protected $casts = [
+        'user_id' => 'integer',
         'width' => 'integer',
         'height' => 'integer',
         'elements' => 'array',
     ];
 
-    /**
-     * The single global template, or a sensible default matching the shipped
-     * prepaid WiFi card artwork when none has been configured yet.
-     */
-    public static function active(): self
+    public function user()
     {
-        $tpl = self::query()->orderBy('id')->first();
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Resolve a template hierarchically for a user:
+     * 1. Specific template for this user.
+     * 2. Parent reseller template (if user is a seller).
+     * 3. Global template (user_id = null).
+     * 4. Hardcoded defaults.
+     */
+    public static function activeForUser(?User $user): self
+    {
+        if ($user) {
+            $tpl = self::query()->where('user_id', $user->id)->first();
+            if ($tpl) {
+                return $tpl;
+            }
+
+            if ($user->isSeller() && $user->parent_id) {
+                $tpl = self::query()->where('user_id', $user->parent_id)->first();
+                if ($tpl) {
+                    return $tpl;
+                }
+            }
+        }
+
+        $tpl = self::query()->whereNull('user_id')->first();
         if ($tpl) {
             return $tpl;
         }
@@ -29,6 +53,14 @@ class VoucherCardTemplate extends Model
         $t->exists = false;
 
         return $t;
+    }
+
+    /**
+     * Backward-compatible active template resolver using current request user.
+     */
+    public static function active(): self
+    {
+        return self::activeForUser(request()->user());
     }
 
     /**

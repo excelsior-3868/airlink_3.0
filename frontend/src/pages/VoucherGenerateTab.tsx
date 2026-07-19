@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Ticket, AlertTriangle, Printer, Zap, Plus, Pencil, Loader2 } from 'lucide-react'
+import { Ticket, AlertTriangle, Printer, Zap, Plus, Pencil, Loader2, Wallet, Database, ShieldCheck, Layers } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
@@ -76,7 +76,7 @@ function VoucherPackageCard({
   const delegationOptions = useMemo(() => {
     const opts: SelectOption[] = [{ value: '', label: 'Myself' }]
     if (user?.role === 'admin' || user?.role === 'reseller') {
-      allResellers.forEach((r) => {
+      allResellers.filter((r) => r.id !== user?.id).forEach((r) => {
         opts.push({
           value: `reseller-${r.id}`,
           label: r.name,
@@ -161,14 +161,31 @@ function VoucherPackageCard({
       )}
 
       {/* Header */}
-      <div className="bg-[#003164] p-3 text-white text-center relative flex flex-col items-center justify-center min-h-[76px] shrink-0">
-        <button
-          onClick={() => onEdit(p)}
-          className="absolute top-2 right-2 text-white/70 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all"
-          title="Edit Package"
-        >
-          <Pencil size={13} />
-        </button>
+      <div className={`p-3 text-white text-center relative flex flex-col items-center justify-center min-h-[84px] shrink-0 transition-colors ${
+        p.package_type === 'wallet' ? 'bg-[#002855]' : 'bg-[#003164]'
+      }`}>
+        <div className="flex items-center gap-1.5 mb-1">
+          {p.package_type === 'wallet' ? (
+            <span className="text-[9px] bg-cyan-500/25 text-cyan-200 border border-cyan-400/40 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider flex items-center gap-1">
+              <Wallet size={10} /> Wallet Package
+            </span>
+          ) : (
+            <span className="text-[9px] bg-emerald-500/25 text-emerald-200 border border-emerald-400/40 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider flex items-center gap-1">
+              <Database size={10} /> GB Package
+            </span>
+          )}
+        </div>
+
+        {(user?.role === 'admin' || p.created_by === user?.id) && (
+          <button
+            onClick={() => onEdit(p)}
+            className="absolute top-2 right-2 text-white/70 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all"
+            title="Edit Package"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
+
         <div className="font-extrabold text-base tracking-wide truncate max-w-[85%]">{p.name}</div>
         <div className="text-xs text-slate-200 mt-1 font-semibold">{rs(p.selling_price)} / Voucher</div>
         <div className="text-[10px] text-slate-300 mt-0.5 flex gap-2">
@@ -211,20 +228,6 @@ function VoucherPackageCard({
               onChange={(e) => setBatchCode(e.target.value)}
             />
           </div>
-
-          {/* Generated For */}
-          {user?.role !== 'seller' && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-slate-500">Generated For :</span>
-              <CustomSelect
-                value={delegationId}
-                onChange={(val) => setDelegationId(val)}
-                options={delegationOptions}
-                searchable={true}
-                className="min-w-[144px]"
-              />
-            </div>
-          )}
 
         </div>
 
@@ -296,7 +299,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
       api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setAllResellers(r.data.data.data))
       api.get('/users', { params: { role: 'seller', per_page: 500 } }).then((r) => setAllSellers(r.data.data.data))
     } else if (user.role === 'reseller') {
-      setAllResellers([user])
+      setAllResellers([])
       api.get('/users', { params: { role: 'seller', per_page: 100 } }).then((r) => setAllSellers(r.data.data.data))
     }
   }, [user])
@@ -307,7 +310,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
   const delegationOptions = useMemo(() => {
     const opts: SelectOption[] = [{ value: '', label: 'Myself' }]
     if (user?.role === 'admin' || user?.role === 'reseller') {
-      allResellers.forEach((r) => {
+      allResellers.filter((r) => r.id !== user?.id).forEach((r) => {
         opts.push({
           value: `reseller-${r.id}`,
           label: r.name,
@@ -333,7 +336,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
     }
     opts.push({ value: '', label: 'Myself' })
     if (user?.role === 'admin' || user?.role === 'reseller') {
-      allResellers.forEach((r) => {
+      allResellers.filter((r) => r.id !== user?.id).forEach((r) => {
         opts.push({
           value: `reseller-${r.id}`,
           label: r.name,
@@ -352,6 +355,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
   }, [allResellers, allSellers, user])
 
   const [selectedOwnerId, setSelectedOwnerId] = useState('')
+  const [packageTypeTab, setPackageTypeTab] = useState<'all' | 'gb' | 'wallet'>('all')
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -359,10 +363,19 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
     }
   }, [user])
 
-  // Filter plans to show only GB package types created by the selected owner
-  const filteredGbPackages = useMemo(() => {
+  // Filter plans to show packages created by the selected owner + Admin global wallet packages
+  const ownerFilteredPackages = useMemo(() => {
+    const isSellerTarget = user?.role === 'seller' || selectedOwnerId.startsWith('seller-')
+
     return plans.filter((p) => {
-      if (p.package_type !== 'gb') return false
+      // Wallet packages are NEVER accessible to sellers or when viewing seller packages
+      if (p.package_type === 'wallet') {
+        if (isSellerTarget) return false
+        if (!p.creator || p.creator.role === 'admin') {
+          return user?.role === 'admin' || user?.role === 'reseller'
+        }
+      }
+
       if (selectedOwnerId === 'all') return true
       if (!selectedOwnerId) {
         return p.created_by === user?.id
@@ -372,6 +385,21 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
       }
     })
   }, [plans, selectedOwnerId, user])
+
+  // Count package types
+  const gbCount = useMemo(() => ownerFilteredPackages.filter((p) => p.package_type === 'gb').length, [ownerFilteredPackages])
+  const walletCount = useMemo(() => ownerFilteredPackages.filter((p) => p.package_type === 'wallet').length, [ownerFilteredPackages])
+
+  // Apply category sub-tab filter
+  const displayedPackages = useMemo(() => {
+    if (packageTypeTab === 'gb') {
+      return ownerFilteredPackages.filter((p) => p.package_type === 'gb')
+    }
+    if (packageTypeTab === 'wallet') {
+      return ownerFilteredPackages.filter((p) => p.package_type === 'wallet')
+    }
+    return ownerFilteredPackages
+  }, [ownerFilteredPackages, packageTypeTab])
 
   // Create Package State
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -584,7 +612,7 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
               onChange={(val) => setSelectedOwnerId(val)}
               options={ownerFilterOptions}
               searchable={true}
-              className="min-w-[220px]"
+              className="min-w-[340px]"
             />
           </div>
         )}
@@ -596,9 +624,47 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
         </button>
       </div>
 
+      {/* Category Sub-Tabs (Differentiate GB vs Wallet packages) */}
+      {walletCount > 0 && (
+        <div className="flex flex-wrap gap-2 border-b border-slate-200/80 pb-3 -mt-2">
+          <button
+            onClick={() => setPackageTypeTab('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer select-none ${
+              packageTypeTab === 'all'
+                ? 'bg-[#003164] text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <Layers size={13} /> All Packages ({ownerFilteredPackages.length})
+          </button>
+
+          <button
+            onClick={() => setPackageTypeTab('gb')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer select-none ${
+              packageTypeTab === 'gb'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+            }`}
+          >
+            <Database size={13} /> GB Packages ({gbCount})
+          </button>
+
+          <button
+            onClick={() => setPackageTypeTab('wallet')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer select-none ${
+              packageTypeTab === 'wallet'
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100 border border-cyan-200/60'
+            }`}
+          >
+            <Wallet size={13} /> Wallet Packages ({walletCount})
+          </button>
+        </div>
+      )}
+
       {/* Card Grid Layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredGbPackages.map((p) => (
+        {displayedPackages.map((p) => (
           <VoucherPackageCard
             key={p.id}
             p={p}
@@ -613,16 +679,16 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
         ))}
       </div>
 
-      {filteredGbPackages.length === 0 && (
+      {displayedPackages.length === 0 && (
         <div className="bg-white border border-slate-200/80 rounded-[24px] p-12 shadow-sm flex flex-col items-center justify-center text-center">
           <div className="p-4 bg-slate-50 text-[#003164]/60 rounded-full mb-4 border border-slate-100">
             <Ticket size={32} />
           </div>
-          <h3 className="text-base font-bold text-slate-800 tracking-tight">No Custom GB Packages Found</h3>
+          <h3 className="text-base font-bold text-slate-800 tracking-tight">No Custom Packages Found</h3>
           <p className="text-xs text-slate-400 font-medium max-w-sm mt-1 mb-2">
             {user?.role === 'seller'
               ? 'You do not have any custom packages configured yet.'
-              : 'There are no custom GB packages created for this user yet. Click "Create a Package" to get started.'}
+              : 'There are no custom packages created for this user yet. Click "Create a Package" to get started.'}
           </p>
         </div>
       )}

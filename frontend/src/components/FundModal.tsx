@@ -53,11 +53,11 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
 
     if (user.role === 'admin') {
       // Admin loads both resellers and sellers
-      api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setResellers(r.data.data.data))
-      api.get('/users', { params: { role: 'seller', per_page: 500 } }).then((r) => setSellers(r.data.data.data))
+      api.get('/users', { params: { role: 'reseller', per_page: 100 } }).then((r) => setResellers(r.data.data?.data || r.data.data || []))
+      api.get('/users', { params: { role: 'seller', per_page: 500 } }).then((r) => setSellers(r.data.data?.data || r.data.data || []))
     } else if (user.role === 'reseller') {
       // Reseller loads only their sellers
-      api.get('/users', { params: { role: 'seller', per_page: 100 } }).then((r) => setSellers(r.data.data.data))
+      api.get('/users', { params: { role: 'seller', per_page: 100 } }).then((r) => setSellers(r.data.data?.data || r.data.data || []))
     }
   }, [user, open])
 
@@ -195,46 +195,48 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
 
         {targetUser && (
           <>
-            {/* Allocation Type Switch */}
-            <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-2">
-                Allocation Type
-              </label>
-              <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllocType('gb')
-                    setErr('')
-                    setSuccess('')
-                  }}
-                  className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-bold transition-all ${
-                    allocType === 'gb'
-                      ? 'bg-white text-[#003164] shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Database size={16} />
-                  GB Allocation
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAllocType('wallet')
-                    setErr('')
-                    setSuccess('')
-                  }}
-                  className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-bold transition-all ${
-                    allocType === 'wallet'
-                      ? 'bg-white text-[#003164] shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Wallet size={16} />
-                  Wallet Allocation
-                </button>
+            {/* Allocation Type Switch (Admin only) */}
+            {user?.role === 'admin' ? (
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-2">
+                  Allocation Type
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllocType('gb')
+                      setErr('')
+                      setSuccess('')
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-bold transition-all ${
+                      allocType === 'gb'
+                        ? 'bg-white text-[#003164] shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Database size={16} />
+                    GB Allocation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAllocType('wallet')
+                      setErr('')
+                      setSuccess('')
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-sm font-bold transition-all ${
+                      allocType === 'wallet'
+                        ? 'bg-white text-[#003164] shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Wallet size={16} />
+                    Wallet Allocation
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Recipient current info */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50/50 border border-slate-200/50 p-3 rounded-2xl text-xs">

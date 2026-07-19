@@ -9,20 +9,38 @@ use Illuminate\Http\Request;
 
 class VoucherTemplateController extends Controller
 {
-    /** The global voucher card design (or defaults). Readable by all authed users. */
-    public function index(): JsonResponse
+    /** The global or custom voucher card design (or defaults). Readable by all authed users. */
+    public function index(Request $request): JsonResponse
     {
-        $t = VoucherCardTemplate::active();
+        $actor = $request->user();
+        $targetUser = $actor;
+
+        if ($userId = $request->query('user_id')) {
+            $user = \App\Models\User::find($userId);
+            if ($user) {
+                if ($actor->isAdmin()
+                    || $actor->id === $user->id
+                    || ($actor->isReseller() && $user->parent_id === $actor->id)
+                ) {
+                    $targetUser = $user;
+                } else {
+                    return $this->fail('Forbidden.', 403);
+                }
+            }
+        }
+
+        $t = VoucherCardTemplate::activeForUser($targetUser);
 
         return $this->ok([
             'width' => $t->width,
             'height' => $t->height,
             'background_data' => $t->background_data,
             'elements' => $t->elements ?? [],
+            'is_custom' => $t->user_id !== null,
         ]);
     }
 
-    /** Save the global voucher card design. Admin only (gated at the route). */
+    /** Save the global or custom voucher card design. Open to all authenticated roles. */
     public function save(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -48,14 +66,36 @@ class VoucherTemplateController extends Controller
             // Logo / image element — data URI and width as % of the card width.
             'elements.*.image_data' => ['nullable', 'string', 'max:4000000'],
             'elements.*.width' => ['nullable', 'numeric', 'min:1', 'max:100'],
+            // Admin can specify a target reseller/seller to design on behalf of.
+            'target_user_id' => ['sometimes', 'nullable', 'integer'],
         ]);
 
-        $tpl = VoucherCardTemplate::query()->orderBy('id')->first() ?? new VoucherCardTemplate();
+        $actor = $request->user();
+
+        // Resolve which user's template to update.
+        if ($actor->isAdmin() && !empty($data['target_user_id'])) {
+            $target = \App\Models\User::find($data['target_user_id']);
+            if (!$target || $target->role === 'admin') {
+                return $this->fail('Invalid target user.', 422);
+            }
+            $tpl = VoucherCardTemplate::query()->where('user_id', $target->id)->first() ?? new VoucherCardTemplate();
+            $tpl->user_id = $target->id;
+        } elseif ($actor->isAdmin()) {
+            // Saving the global default.
+            $tpl = VoucherCardTemplate::query()->whereNull('user_id')->first() ?? new VoucherCardTemplate();
+            $tpl->user_id = null;
+        } else {
+            // Reseller or seller saving their own custom design.
+            $tpl = VoucherCardTemplate::query()->where('user_id', $actor->id)->first() ?? new VoucherCardTemplate();
+            $tpl->user_id = $actor->id;
+        }
+
         $tpl->fill([
             'width' => $data['width'],
             'height' => $data['height'],
             'elements' => $data['elements'],
         ]);
+
         // Set the background exactly as sent: a data URI keeps a custom image,
         // null/empty reverts to the shipped default artwork.
         if ($request->has('background_data')) {
@@ -65,5 +105,26 @@ class VoucherTemplateController extends Controller
         $tpl->save();
 
         return $this->ok(null, 'Voucher card design saved.');
+    }
+
+    /** Revert a custom template back to default (deletes custom design for reseller/seller).
+     *  Admin can pass ?user_id= to reset any specific user's template. */
+    public function reset(Request $request): JsonResponse
+    {
+        $actor = $request->user();
+
+        // Admin resetting another user's template.
+        if ($actor->isAdmin() && $targetId = $request->query('user_id')) {
+            VoucherCardTemplate::query()->where('user_id', $targetId)->delete();
+            return $this->ok(null, 'Custom voucher card design reset to default.');
+        }
+
+        if ($actor->isAdmin()) {
+            return $this->fail('Admin cannot reset the default design.', 422);
+        }
+
+        VoucherCardTemplate::query()->where('user_id', $actor->id)->delete();
+
+        return $this->ok(null, 'Custom voucher card design reset to default.');
     }
 }

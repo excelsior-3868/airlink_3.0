@@ -20,6 +20,7 @@ import SystemLoad from './pages/SystemLoad'
 import VoucherGenerator from './pages/VoucherGenerator'
 import VoucherCardDesigner from './pages/VoucherCardDesigner'
 import RadiusLogs from './pages/RadiusLogs'
+import SeasonDuration from './pages/SeasonDuration' // force rebuild to resolve import
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -71,7 +72,7 @@ export default function App() {
         <Route path="/plans/bandwidth" element={<Guard perm="view_plans"><Bandwidths /></Guard>} />
         <Route path="/resellers" element={<Guard perm="view_resellers" roles={['admin']}><Users role="reseller" /></Guard>} />
         <Route path="/sellers" element={<Guard perm="view_sellers" roles={['admin', 'reseller']}><Users role="seller" /></Guard>} />
-        <Route path="/wallet" element={<Guard perm="wallet_load"><Wallet /></Guard>} />
+        <Route path="/wallet" element={<Guard perm="wallet_load" roles={['admin']}><Wallet /></Guard>} />
         <Route path="/gb" element={<Guard perm="allocate_gb"><Gb /></Guard>} />
         <Route path="/transactions" element={<Guard perm="view_transactions"><Transactions /></Guard>} />
         <Route path="/vouchers" element={<Guard perm="generate_voucher"><Vouchers /></Guard>} />
@@ -82,7 +83,8 @@ export default function App() {
         <Route path="/logs" element={<Guard perm="view_settings" roles={['admin']}><LoginLogs /></Guard>} />
         <Route path="/permissions" element={<Guard perm="view_settings" roles={['admin']}><Permissions /></Guard>} />
         <Route path="/settings/system-load" element={<Guard perm="view_settings" roles={['admin']}><SystemLoad /></Guard>} />
-        <Route path="/settings/voucher-card" element={<Guard perm="view_settings" roles={['admin']}><VoucherCardDesigner /></Guard>} />
+        <Route path="/settings/voucher-card" element={<Guard roles={['admin', 'reseller', 'seller']}><VoucherCardDesigner /></Guard>} />
+        <Route path="/settings/seasons" element={<Guard perm="view_settings" roles={['admin']}><SeasonDuration /></Guard>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

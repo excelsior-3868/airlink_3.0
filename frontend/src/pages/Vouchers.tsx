@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Ticket, Download, Zap, Printer, Layers } from 'lucide-react'
@@ -27,6 +27,27 @@ export default function Vouchers() {
 
   // Fetch voucher card template once for the page
   const { data: voucherTemplate } = useQuery<any>('voucher-template', () => api.get('/voucher-template').then((r) => r.data.data))
+
+  const [resolvedTemplate, setResolvedTemplate] = useState<any>(null)
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
+
+  useEffect(() => {
+    if (printVouchers.length > 0) {
+      const first = printVouchers[0]
+      const targetUserId = first.seller_id || first.reseller_id || first.owner_id
+      if (targetUserId) {
+        setLoadingTemplate(true)
+        api.get('/voucher-template', { params: { user_id: targetUserId } })
+          .then((r) => setResolvedTemplate(r.data.data))
+          .catch(() => setResolvedTemplate(voucherTemplate))
+          .finally(() => setLoadingTemplate(false))
+      } else {
+        setResolvedTemplate(voucherTemplate)
+      }
+    } else {
+      setResolvedTemplate(voucherTemplate)
+    }
+  }, [printVouchers, voucherTemplate])
 
   const printSingleCard = (v: any) => {
     setPrintTitle(`Voucher Card: ${v.code}`)
@@ -273,7 +294,7 @@ export default function Vouchers() {
                 options={[
                   { value: '', label: 'All Plans' },
                   ...plans
-                    .filter((p) => p.package_type === 'gb' && (user?.role === 'admin' ? true : p.created_by === user?.id))
+                    .filter((p) => (user?.role === 'admin' ? true : p.created_by === user?.id))
                     .map((p) => ({ value: p.id, label: p.name }))
                 ]}
               />
@@ -406,7 +427,7 @@ export default function Vouchers() {
             <div className="flex gap-2">
               <button 
                 onClick={() => window.print()} 
-                disabled={!voucherTemplate || loadingPrint || printVouchers.length === 0} 
+                disabled={!resolvedTemplate || loadingTemplate || loadingPrint || printVouchers.length === 0} 
                 className="btn-primary py-2.5 px-6 rounded-2xl font-bold flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Printer size={16} /> Print Cards
@@ -416,7 +437,7 @@ export default function Vouchers() {
 
           {loadingPrint ? (
             <Spinner />
-          ) : !voucherTemplate ? (
+          ) : (!resolvedTemplate || loadingTemplate) ? (
             <div className="py-12 text-center text-slate-500">Loading card template...</div>
           ) : printVouchers.length === 0 ? (
             <div className="py-12 text-center text-slate-500">No cards to display.</div>
@@ -430,7 +451,7 @@ export default function Vouchers() {
                     price={v.price}
                     username={v.username}
                     password={v.password}
-                    template={voucherTemplate}
+                    template={resolvedTemplate}
                     size={220}
                   />
                 </div>
@@ -441,7 +462,7 @@ export default function Vouchers() {
       </Modal>
 
       {/* Portal for clean, style-isolated high-res print output */}
-      {printModalOpen && !loadingPrint && voucherTemplate && printVouchers.length > 0 && createPortal(
+      {printModalOpen && !loadingPrint && resolvedTemplate && !loadingTemplate && printVouchers.length > 0 && createPortal(
         <div className="print-area">
           <div className="print-cards-grid">
             {printVouchers.map((v) => (
@@ -452,7 +473,7 @@ export default function Vouchers() {
                   price={v.price}
                   username={v.username}
                   password={v.password}
-                  template={voucherTemplate}
+                  template={resolvedTemplate}
                   size={265}
                 />
               </div>

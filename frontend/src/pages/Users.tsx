@@ -255,7 +255,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         )}
         <span className="flex items-center gap-1.5">
           <span className="p-1 rounded-md bg-slate-100 text-primary inline-flex"><PlusCircle size={12} /></span>
-          <span>Load Wallet/GB</span>
+          <span>{user?.role === 'admin' ? 'Load Wallet/GB' : 'Allocate GB'}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span className="p-1 rounded-md bg-rose-50 text-rose-500 inline-flex"><Power size={12} /></span>
@@ -270,10 +270,10 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
               <tr>
                 <th>Name</th>
                 <th>Username</th>
-                {role !== 'reseller' && <th>Wallet Balance</th>}
-                <th>Wallet Due</th>
+                <th>Payment Due</th>
                 <th>GB Balance</th>
                 <th>GB Rate</th>
+                <th>Vouchers Generated</th>
                 {role === 'reseller' && <th>Sellers</th>}
                 <th>Status</th>
                 <th></th>
@@ -293,10 +293,10 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                     >
                       <td className="font-semibold text-slate-800">{u.name}</td>
                       <td className="font-mono text-xs">{u.username}</td>
-                      {role !== 'reseller' && <td>{rs(u.wallet_balance)}</td>}
                       <td className="text-rose-600 font-semibold">{rs(u.wallet_due)}</td>
                       <td>{gb(u.gb_balance)}</td>
                       <td>{rs(u.gb_rate)}/GB</td>
+                      <td className="font-semibold text-slate-700">{u.vouchers_count ?? 0}</td>
                       {role === 'reseller' && <td>{u.children_count ?? 0}</td>}
                       <td><Pill tone={u.status === 'active' ? 'success' : 'danger'}>{u.status === 'active' ? 'Active' : 'Disabled'}</Pill></td>
                       <td className="text-right pr-6 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -310,7 +310,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                             <Coins size={14} />
                           </button>
                         )}
-                        <button className="text-primary hover:text-indigo-800 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center mr-1" title="Load Wallet/GB" onClick={() => { setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>
+                        <button className="text-primary hover:text-indigo-800 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center mr-1" title={user?.role === 'admin' ? 'Load Wallet/GB' : 'Allocate GB'} onClick={() => { setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>
                           <PlusCircle size={14} />
                         </button>
                         <button className={`${u.status === 'active' ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} p-1.5 rounded-lg transition-all inline-flex items-center justify-center mr-1`} title={u.status === 'active' ? 'Disable' : 'Enable'} onClick={() => toggle(u)}>
@@ -554,25 +554,29 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         </div>
       </Modal>
 
-      <Modal open={!!fundUser} onClose={() => setFundUser(null)} title={`Load Wallet/GB — ${fundUser?.name || ''}`}>
+      <Modal open={!!fundUser} onClose={() => setFundUser(null)} title={user?.role === 'admin' ? `Load Wallet/GB — ${fundUser?.name || ''}` : `Allocate GB — ${fundUser?.name || ''}`}>
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-1 flex-wrap gap-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Your Balance:</span>
             <div className="flex gap-2">
-              <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-xs font-bold shadow-sm flex items-center gap-1">
-                <Wallet size={12} />
-                Wallet: {rs(user!.wallet_balance)}
-              </span>
+              {user?.role === 'admin' && (
+                <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100/80 text-xs font-bold shadow-sm flex items-center gap-1">
+                  <Wallet size={12} />
+                  Wallet: {rs(user!.wallet_balance)}
+                </span>
+              )}
               <span className="px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100/80 text-xs font-bold shadow-sm flex items-center gap-1">
                 <Database size={12} />
                 GB Balance: {gb(user!.gb_balance)}
               </span>
             </div>
           </div>
-          <div className="relative">
-            <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="input pl-10 no-spinners" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
-          </div>
+          {user?.role === 'admin' && (
+            <div className="relative">
+              <Wallet size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input className="input pl-10 no-spinners" type="number" placeholder="Wallet amount (Rs)" value={fund.amount} onChange={(e) => setFund({ ...fund, amount: e.target.value })} />
+            </div>
+          )}
           <div className="relative">
             <Database size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-10 pr-28 no-spinners" type="number" placeholder="GB amount" value={fund.gb_amount} onChange={(e) => setFund({ ...fund, gb_amount: e.target.value })} />
@@ -581,32 +585,22 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             </span>
           </div>
 
-          {(+fund.gb_amount > 0 || +fund.amount > 0) && (() => {
-            const walletAmount = +fund.amount || 0
+          {+fund.amount > 0 && +fund.amount > +(user?.wallet_balance || 0) && (
+            <div className="text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 p-2.5 rounded-xl">
+              Insufficient wallet balance. You have {rs(user?.wallet_balance || 0)} available.
+            </div>
+          )}
+
+          {+fund.gb_amount > 0 && (() => {
             const gbTotal = (+fund.gb_amount || 0) * +(fundUser?.gb_rate || 0)
-            const total = gbTotal + walletAmount
-            const paid = Math.min(+fund.gb_paid || 0, total)
-            const due = Math.max(total - paid, 0)
+            const paid = Math.min(+fund.gb_paid || 0, gbTotal)
+            const due = Math.max(gbTotal - paid, 0)
             return (
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-3">
                 <div className="flex items-center justify-between text-xs flex-wrap gap-2">
-                  <span className="text-slate-500 font-semibold">Allocation cost</span>
+                  <span className="text-slate-500 font-semibold">GB Allocation cost</span>
                   <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-700">
-                    {walletAmount > 0 && (
-                      <>
-                        <span className="text-slate-500 font-normal">Wallet:</span>
-                        <span className="text-emerald-600 font-bold">{rs(walletAmount)}</span>
-                      </>
-                    )}
-                    {walletAmount > 0 && gbTotal > 0 && <span className="text-slate-400 font-normal mx-0.5">+</span>}
-                    {gbTotal > 0 && (
-                      <>
-                        <span className="text-slate-500 font-normal">GB:</span>
-                        <span className="text-purple-600 font-bold">{rs(gbTotal)}</span>
-                      </>
-                    )}
-                    <span className="text-slate-400 font-normal mx-0.5">=</span>
-                    <span className="font-extrabold text-sm px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100/50 shadow-sm">{rs(total)}</span>
+                    <span className="text-purple-600 font-bold">{rs(gbTotal)}</span>
                   </div>
                 </div>
                 <div className="relative">
@@ -615,7 +609,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                     className="input pl-10 no-spinners"
                     type="number"
                     min="0"
-                    max={total}
+                    max={gbTotal}
                     step="0.01"
                     placeholder="Paid now (Rs) — optional"
                     value={fund.gb_paid}
@@ -635,7 +629,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             <motion.button
               whileTap={{ scale: 0.95 }}
               className="btn-primary flex items-center justify-center gap-2"
-              disabled={busy}
+              disabled={busy || (!fund.amount && !fund.gb_amount) || (+fund.amount > 0 && +fund.amount > +(user?.wallet_balance || 0))}
               onClick={saveFund}
             >
               {busy && <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
@@ -678,7 +672,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         <div className="space-y-4">
           <div className="bg-slate-50/50 border border-slate-200/50 p-3 rounded-2xl text-xs flex justify-between items-center">
             <div>
-              <p className="text-slate-400 font-semibold">Current Wallet Due:</p>
+              <p className="text-slate-400 font-semibold">Current Payment Due:</p>
               <p className="text-rose-600 font-extrabold text-sm mt-0.5">{rs(collectUser?.wallet_due)}</p>
             </div>
             {+collectAmount > 0 && (
