@@ -8,8 +8,7 @@ import HotspotPlans from './pages/HotspotPlans'
 import PppoePlans from './pages/PppoePlans'
 import Bandwidths from './pages/Bandwidths'
 import Users from './pages/Users'
-import Wallet from './pages/Wallet'
-import Gb from './pages/Gb'
+import FundAllocation from './pages/FundAllocation'
 import Transactions from './pages/Transactions'
 import Vouchers from './pages/Vouchers'
 import Reports from './pages/Reports'
@@ -21,6 +20,9 @@ import VoucherGenerator from './pages/VoucherGenerator'
 import VoucherCardDesigner from './pages/VoucherCardDesigner'
 import RadiusLogs from './pages/RadiusLogs'
 import SeasonDuration from './pages/SeasonDuration' // force rebuild to resolve import
+import SalesLedger from './pages/SalesLedger'
+import ExpensesLedger from './pages/ExpensesLedger'
+import Ledger from './pages/Ledger'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -72,9 +74,13 @@ export default function App() {
         <Route path="/plans/bandwidth" element={<Guard perm="view_plans"><Bandwidths /></Guard>} />
         <Route path="/resellers" element={<Guard perm="view_resellers" roles={['admin']}><Users role="reseller" /></Guard>} />
         <Route path="/sellers" element={<Guard perm="view_sellers" roles={['admin', 'reseller']}><Users role="seller" /></Guard>} />
-        <Route path="/wallet" element={<Guard perm="wallet_load" roles={['admin']}><Wallet /></Guard>} />
-        <Route path="/gb" element={<Guard perm="allocate_gb"><Gb /></Guard>} />
-        <Route path="/transactions" element={<Guard perm="view_transactions"><Transactions /></Guard>} />
+        <Route path="/wallet" element={<Guard roles={['admin', 'reseller', 'seller']}><FundAllocation defaultTab="wallet" /></Guard>} />
+        <Route path="/gb" element={<Guard roles={['admin', 'reseller', 'seller']}><FundAllocation defaultTab="gb" /></Guard>} />
+        <Route path="/funds" element={<Guard roles={['admin', 'reseller', 'seller']}><FundAllocation /></Guard>} />
+        <Route path="/ledger" element={<Guard roles={['admin', 'reseller', 'seller']}><Ledger /></Guard>} />
+        <Route path="/accounts/sales" element={<Navigate to="/ledger?tab=sales" replace />} />
+        <Route path="/accounts/expenses" element={<Navigate to="/ledger?tab=expenses" replace />} />
+        <Route path="/transactions" element={<Navigate to="/ledger?tab=transactions" replace />} />
         <Route path="/vouchers" element={<Guard perm="generate_voucher"><Vouchers /></Guard>} />
         <Route path="/vouchers/generate" element={<Guard perm="generate_voucher"><VoucherGenerator /></Guard>} />
         <Route path="/reports" element={<Guard perm="reports"><Reports /></Guard>} />

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\VoucherTemplateController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\SeasonController;
+use App\Http\Controllers\Api\AccountController;
 use Illuminate\Support\Facades\Route;
 
 // --- Public ---
@@ -51,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Users / hierarchy.
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/{user}', [UserController::class, 'show']);
+    Route::put('/users/{user}', [UserController::class, 'update']);
     Route::patch('/users/{user}/status', [UserController::class, 'setStatus'])->middleware('role:admin,reseller');
     Route::post('/resellers', [UserController::class, 'storeReseller'])->middleware('permission:create_reseller');
     Route::post('/sellers', [UserController::class, 'storeSeller'])->middleware('permission:create_seller');
@@ -71,6 +73,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/billing/invoices', [BillingController::class, 'invoices']);
     Route::get('/billing/payments', [BillingController::class, 'payments']);
     Route::post('/billing/payments/collect', [BillingController::class, 'collect'])->middleware('permission:wallet_load');
+
+    // Accounts Module (Sales Ledger & Expenses)
+    Route::get('/accounts/sales-ledger', [AccountController::class, 'salesLedger']);
+    Route::get('/accounts/expenses', [AccountController::class, 'expensesIndex']);
+    Route::post('/accounts/expenses', [AccountController::class, 'expenseStore']);
+    Route::put('/accounts/expenses/{expense}', [AccountController::class, 'expenseUpdate']);
+    Route::delete('/accounts/expenses/{expense}', [AccountController::class, 'expenseDestroy']);
+
+    Route::get('/accounts/parties', [AccountController::class, 'partiesIndex']);
+    Route::post('/accounts/parties', [AccountController::class, 'partyStore']);
+    Route::put('/accounts/parties/{party}', [AccountController::class, 'partyUpdate']);
+    Route::delete('/accounts/parties/{party}', [AccountController::class, 'partyDestroy']);
+
+    // Direct aliases for expenses & parties
+    Route::get('/expenses', [AccountController::class, 'expensesIndex']);
+    Route::post('/expenses', [AccountController::class, 'expenseStore']);
+    Route::put('/expenses/{expense}', [AccountController::class, 'expenseUpdate']);
+    Route::delete('/expenses/{expense}', [AccountController::class, 'expenseDestroy']);
+
+    Route::get('/parties', [AccountController::class, 'partiesIndex']);
+    Route::post('/parties', [AccountController::class, 'partyStore']);
+    Route::put('/parties/{party}', [AccountController::class, 'partyUpdate']);
+    Route::delete('/parties/{party}', [AccountController::class, 'partyDestroy']);
 
     // Vouchers — generate, list/show scoped, export; lifecycle.
     Route::get('/vouchers', [VoucherController::class, 'index']);

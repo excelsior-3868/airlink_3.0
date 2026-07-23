@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from 'react'
+import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, Percent, Coins, PlusCircle, Power, Eye, EyeOff } from 'lucide-react'
+import { Plus, Wallet, Database, UserPlus, Save, Users2, Store, FileText, CreditCard, CheckCircle2, RefreshCw, ChevronDown, ChevronUp, Percent, Coins, PlusCircle, Power, Eye, EyeOff, Edit3, UserMinus, UserCheck } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
@@ -9,9 +10,16 @@ import { GlassCard, PageTitle, Modal, Pill, Pagination, EmptyState, Spinner } fr
 
 export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const { user, refresh, can } = useAuth()
+  const location = useLocation()
   const [page, setPage] = useState(1)
 
   const [createOpen, setCreateOpen] = useState(false)
+
+  useEffect(() => {
+    if (location.search.includes('action=add')) {
+      setCreateOpen(true)
+    }
+  }, [location.search])
   const [form, setForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', confirm_password: '', parent_id: '', gb_rate: '' })
   const [showPw, setShowPw] = useState(false)
   const [showConfirmPw, setShowConfirmPw] = useState(false)
@@ -20,8 +28,8 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   const [collectUser, setCollectUser] = useState<any>(null)
   const [collectAmount, setCollectAmount] = useState('')
   const [collectNote, setCollectNote] = useState('')
-  const [rateUser, setRateUser] = useState<any>(null)
-  const [customRate, setCustomRate] = useState('')
+  const [editUser, setEditUser] = useState<any>(null)
+  const [editForm, setEditForm] = useState<any>({ name: '', username: '', email: '', phone: '', password: '', parent_id: '', gb_rate: '' })
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -121,7 +129,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
 
   const label = role === 'reseller' ? 'Reseller' : 'Seller'
 
-  const { data, refetch } = useQuery<any>(
+  const { data, loading: usersLoading, refetch } = useQuery<any>(
     `users?role=${role}&page=${page}`,
     () => api.get('/users', { params: { role, page } }).then((r) => r.data.data),
   )
@@ -140,19 +148,46 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   useEffect(() => { setPage(1) }, [role])
   useEffect(() => { setExpandedUserId(null); setHistoryData([]) }, [role, page])
 
-  const openEditRate = (u: any) => {
-    setRateUser(u)
-    setCustomRate(String(u.gb_rate))
+  const openEditUser = (u: any) => {
+    setEditUser(u)
+    setEditForm({
+      name: u.name || '',
+      username: u.username || '',
+      email: u.email || '',
+      phone: u.phone || '',
+      password: '',
+      parent_id: u.parent_id || '',
+      gb_rate: u.gb_rate !== undefined && u.gb_rate !== null ? String(u.gb_rate) : '',
+    })
     setErr('')
   }
 
-  const saveRate = async () => {
+  const saveEditUser = async () => {
+    if (editForm.email && editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim())) {
+      setErr('Please enter a valid email address.')
+      return
+    }
+    if (editForm.phone && editForm.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(editForm.phone.trim())) {
+      setErr('Please enter a valid phone number.')
+      return
+    }
+    if (editForm.password && editForm.password.length < 6) {
+      setErr('Password must be at least 6 characters.')
+      return
+    }
     setBusy(true)
     setErr('')
     try {
-      await api.patch(`/users/${rateUser.id}/gb-rate`, { gb_rate: +customRate })
-      setRateUser(null)
-      setCustomRate('')
+      const payload: any = { ...editForm }
+      if (!payload.password) delete payload.password
+      if (user?.role !== 'admin' || !payload.gb_rate || String(payload.gb_rate).trim() === '') {
+        delete payload.gb_rate
+      }
+      if (role !== 'seller' || user?.role !== 'admin' || !payload.parent_id) {
+        delete payload.parent_id
+      }
+      await api.put(`/users/${editUser.id}`, payload)
+      setEditUser(null)
       load()
     } catch (e) {
       setErr(apiError(e))
@@ -162,6 +197,14 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
   }
 
   const saveUser = async () => {
+    if (form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setErr('Please enter a valid email address.')
+      return
+    }
+    if (form.phone && form.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(form.phone.trim())) {
+      setErr('Please enter a valid phone number.')
+      return
+    }
     if (form.password && form.password !== form.confirm_password) {
       setErr('Passwords do not match.')
       return
@@ -172,7 +215,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
       const pid = role === 'seller' ? (user?.role === 'reseller' ? user.id : form.parent_id) : user!.id
       const payload = { ...form }
       delete payload.confirm_password
-      if (user?.role !== 'admin') {
+      if (user?.role !== 'admin' || !payload.gb_rate || String(payload.gb_rate).trim() === '') {
         delete payload.gb_rate
       }
       await api.post(`/${role}s`, { ...payload, parent_id: pid })
@@ -234,37 +277,38 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
 
   return (
     <div>
-      <PageTitle title={`${label}s`} subtitle={`Manage your ${label.toLowerCase()} network`}
+      <PageTitle title={`Add/View ${label}s`} subtitle={`Manage your ${label.toLowerCase()} network`}
         icon={role === 'reseller' ? <Users2 size={22} className="text-purple-500" /> : <Store size={22} className="text-amber-500" />}
         action={<motion.button whileTap={{ scale: 0.95 }} className="btn-primary flex items-center gap-2" onClick={() => { setErr(''); setCreateOpen(true) }}><Plus size={16} /> New {label}</motion.button>} />
 
       {/* Action Guide / Legend */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-3.5 px-4 py-2.5 bg-slate-50 border border-slate-200/50 rounded-2xl text-xs text-slate-500 shadow-sm">
         <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px]">Action Guide:</span>
-        {user?.role === 'admin' && (
-          <span className="flex items-center gap-1.5">
-            <span className="p-1 rounded-md bg-teal-50 text-teal-600 inline-flex"><Percent size={12} /></span>
-            <span>Edit GB Rate</span>
-          </span>
-        )}
+        <span className="flex items-center gap-1.5">
+          <span className="p-1 rounded-md bg-sky-50 text-sky-600 inline-flex"><Edit3 size={12} /></span>
+          <span>Edit {label}</span>
+        </span>
         {can('wallet_load') && (
           <span className="flex items-center gap-1.5">
-            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600 inline-flex"><Coins size={12} /></span>
+            <span className="p-1 rounded-md bg-emerald-50 text-emerald-600 inline-flex"><CreditCard size={12} /></span>
             <span>Collect Payment</span>
           </span>
         )}
         <span className="flex items-center gap-1.5">
-          <span className="p-1 rounded-md bg-slate-100 text-primary inline-flex"><PlusCircle size={12} /></span>
+          <span className="p-1 rounded-md bg-slate-100 text-primary inline-flex"><Wallet size={12} /></span>
           <span>{user?.role === 'admin' ? 'Load Wallet/GB' : 'Allocate GB'}</span>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="p-1 rounded-md bg-rose-50 text-rose-500 inline-flex"><Power size={12} /></span>
+          <span className="p-1 rounded-md bg-rose-50 text-rose-500 inline-flex"><UserMinus size={12} /></span>
           <span>Enable/Disable</span>
         </span>
       </div>
 
       <GlassCard className="!p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+        {usersLoading && !data ? (
+          <Spinner />
+        ) : null}
+        <div className={`overflow-x-auto ${usersLoading && !data ? 'hidden' : ''}`}>
           <table className="w-full">
             <thead>
               <tr>
@@ -300,21 +344,19 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
                       {role === 'reseller' && <td>{u.children_count ?? 0}</td>}
                       <td><Pill tone={u.status === 'active' ? 'success' : 'danger'}>{u.status === 'active' ? 'Active' : 'Disabled'}</Pill></td>
                       <td className="text-right pr-6 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        {user?.role === 'admin' && (
-                          <button className="text-teal-600 hover:text-teal-800 p-1.5 rounded-lg hover:bg-teal-50 transition-all inline-flex items-center justify-center mr-1" title="Rate" onClick={() => openEditRate(u)}>
-                            <Percent size={14} />
-                          </button>
-                        )}
+                        <button className="text-sky-600 hover:text-sky-800 p-1.5 rounded-lg hover:bg-sky-50 transition-all inline-flex items-center justify-center mr-1" title={`Edit ${label}`} onClick={() => openEditUser(u)}>
+                          <Edit3 size={14} />
+                        </button>
                         {+u.wallet_due > 0 && can('wallet_load') && (
                           <button className="text-emerald-600 hover:text-emerald-800 p-1.5 rounded-lg hover:bg-emerald-50 transition-all inline-flex items-center justify-center mr-1" title="Payment" onClick={() => { setCollectUser(u); setErr(''); setCollectAmount(''); setCollectNote(''); }}>
-                            <Coins size={14} />
+                            <CreditCard size={14} />
                           </button>
                         )}
                         <button className="text-primary hover:text-indigo-800 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center mr-1" title={user?.role === 'admin' ? 'Load Wallet/GB' : 'Allocate GB'} onClick={() => { setFundUser(u); setErr(''); setFund({ amount: '', gb_amount: '', gb_paid: '' }); }}>
-                          <PlusCircle size={14} />
+                          <Wallet size={14} />
                         </button>
-                        <button className={`${u.status === 'active' ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'} p-1.5 rounded-lg transition-all inline-flex items-center justify-center mr-1`} title={u.status === 'active' ? 'Disable' : 'Enable'} onClick={() => toggle(u)}>
-                          <Power size={14} />
+                        <button className={`${u.status === 'active' ? 'text-rose-500 hover:text-rose-700 hover:bg-rose-50' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50'} p-1.5 rounded-lg transition-all inline-flex items-center justify-center mr-1`} title={u.status === 'active' ? 'Disable' : 'Enable'} onClick={() => toggle(u)}>
+                          {u.status === 'active' ? <UserMinus size={14} /> : <UserCheck size={14} />}
                         </button>
                         <button className="text-slate-500 hover:text-primary p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" onClick={() => toggleExpand(u)}>
                           {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -447,28 +489,45 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Full Name</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Full Name</label>
               <input className="input" placeholder="e.g. John Doe" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Username</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Username</label>
               <input className="input" placeholder="e.g. johndoe" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Email Address</label>
-              <input className="input" type="email" placeholder="e.g. john@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Email Address</label>
+              <input
+                className={`input ${form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) ? 'border-red-400 focus:border-red-500' : ''}`}
+                type="email"
+                placeholder="e.g. john@example.com"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+              {form.email && form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) && (
+                <p className="text-xs text-red-500 font-semibold mt-1">Please enter a valid email address</p>
+              )}
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Phone Number</label>
-              <input className="input" placeholder="e.g. +977-98..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Phone Number</label>
+              <input
+                className={`input ${form.phone && form.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(form.phone.trim()) ? 'border-red-400 focus:border-red-500' : ''}`}
+                placeholder="e.g. +977-98..."
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+              {form.phone && form.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(form.phone.trim()) && (
+                <p className="text-xs text-red-500 font-semibold mt-1">Please enter a valid phone number</p>
+              )}
             </div>
 
             {role === 'seller' && user?.role === 'admin' && (
               <div className="md:col-span-2">
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Parent Reseller</label>
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Parent Reseller</label>
                 <select className="input" value={form.parent_id} onChange={(e) => setForm({ ...form, parent_id: e.target.value })}>
                   <option value="">Select parent reseller…</option>
                   {resellers.map((r) => <option key={r.id} value={r.id}>{r.name} ({r.username})</option>)}
@@ -478,13 +537,20 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
 
             {user?.role === 'admin' && (
               <div className="md:col-span-2">
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">GB Rate (Rs. per GB)</label>
-                <input className="input" type="number" min="0.01" step="0.01" placeholder="e.g. 100.00" value={form.gb_rate} onChange={(e) => setForm({ ...form, gb_rate: e.target.value })} />
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">GB Rate (Rs. Per GB)</label>
+                <input
+                  className="input no-spinners"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="e.g. 100.00"
+                  value={form.gb_rate}
+                  onChange={(e) => setForm({ ...form, gb_rate: e.target.value })}
+                />
               </div>
             )}
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Password</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Password</label>
               <div className="relative">
                 <input
                   className="input pr-10"
@@ -506,7 +572,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Confirm Password</label>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Confirm Password</label>
               <div className="relative">
                 <input
                   className={`input pr-10 ${form.confirm_password && form.confirm_password !== form.password ? 'border-red-400 focus:border-red-500' : ''}`}
@@ -639,30 +705,106 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
         </div>
       </Modal>
 
-      <Modal open={!!rateUser} onClose={() => setRateUser(null)} title={`Edit GB Rate: ${rateUser?.name || ''}`}>
+      <Modal
+        open={!!editUser}
+        onClose={() => setEditUser(null)}
+        title={`Edit ${label}: ${editUser?.name || ''}`}
+        subtitle={`Update account details and credentials for ${editUser?.username || ''}.`}
+        icon={<Edit3 size={22} />}
+      >
         <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">GB Rate (Rs per GB)</label>
-            <input
-              className="input no-spinners"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={customRate}
-              onChange={(e) => setCustomRate(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Full Name</label>
+              <input className="input" placeholder="e.g. John Doe" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </div>
+            
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Username</label>
+              <input className="input" placeholder="e.g. johndoe" value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Email Address</label>
+              <input
+                className={`input ${editForm.email && editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim()) ? 'border-red-400 focus:border-red-500' : ''}`}
+                type="email"
+                placeholder="e.g. john@example.com"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+              {editForm.email && editForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editForm.email.trim()) && (
+                <p className="text-xs text-red-500 font-semibold mt-1">Please enter a valid email address</p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">Phone Number</label>
+              <input
+                className={`input ${editForm.phone && editForm.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(editForm.phone.trim()) ? 'border-red-400 focus:border-red-500' : ''}`}
+                placeholder="e.g. +977-98..."
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              />
+              {editForm.phone && editForm.phone.trim() && !/^\+?[0-9\s\-()]{7,20}$/.test(editForm.phone.trim()) && (
+                <p className="text-xs text-red-500 font-semibold mt-1">Please enter a valid phone number</p>
+              )}
+            </div>
+
+            {role === 'seller' && user?.role === 'admin' && (
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">Parent Reseller</label>
+                <select className="input" value={editForm.parent_id} onChange={(e) => setEditForm({ ...editForm, parent_id: e.target.value })}>
+                  <option value="">Select parent reseller…</option>
+                  {resellers.map((r) => <option key={r.id} value={r.id}>{r.name} ({r.username})</option>)}
+                </select>
+              </div>
+            )}
+
+            {user?.role === 'admin' && (
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-slate-500 block mb-1.5">GB Rate (Rs. Per GB)</label>
+                <input
+                  className="input no-spinners"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="e.g. 100.00"
+                  value={editForm.gb_rate}
+                  onChange={(e) => setEditForm({ ...editForm, gb_rate: e.target.value })}
+                />
+              </div>
+            )}
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-bold text-slate-500 block mb-1.5">New Password (optional)</label>
+              <input
+                className="input"
+                type="password"
+                placeholder="Leave blank to keep existing password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+              />
+            </div>
           </div>
+
           {err && <div className="pill danger w-full justify-center py-2">{err}</div>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button className="btn-ghost" onClick={() => setRateUser(null)}>Cancel</button>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button className="btn-ghost !border-slate-200 !text-slate-700 hover:!bg-slate-50 py-2.5 px-6 rounded-2xl font-bold transition-all" onClick={() => setEditUser(null)}>
+              Cancel
+            </button>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              className="btn-primary flex items-center justify-center gap-2"
+              className="btn-primary flex items-center justify-center gap-2 py-2.5 px-6 rounded-2xl font-bold shadow-md transition-all"
               disabled={busy}
-              onClick={saveRate}
+              onClick={saveEditUser}
             >
-              {busy && <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
-              {busy ? 'Saving…' : 'Save Rate'}
+              {busy ? (
+                <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              {busy ? 'Saving...' : `Update ${label}`}
             </motion.button>
           </div>
         </div>
@@ -684,16 +826,14 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5 flex items-center gap-1">
+            <label className="text-xs font-bold text-slate-500 block mb-1.5 flex items-center gap-1">
               <Wallet size={14} className="text-emerald-500" />
               Payment Amount (Rs)
             </label>
             <input
               className="input no-spinners"
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={collectUser?.wallet_due}
+              type="text"
+              inputMode="decimal"
               placeholder="e.g. 1000"
               value={collectAmount}
               onChange={(e) => setCollectAmount(e.target.value)}
@@ -701,7 +841,7 @@ export default function Users({ role }: { role: 'reseller' | 'seller' }) {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+            <label className="text-xs font-bold text-slate-500 block mb-1.5">
               Note / Reference
             </label>
             <input

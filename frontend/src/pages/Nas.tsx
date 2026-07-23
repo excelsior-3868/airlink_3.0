@@ -4,7 +4,7 @@ import { Plus, Router, Server, Activity, ShieldCheck, ShieldAlert, Wifi, Eye, Ey
 import { api, apiError } from '../lib/api'
 import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
-import { GlassCard, PageTitle, Modal, Pill, EmptyState, CustomSelect, Pagination } from '../components/ui'
+import { GlassCard, PageTitle, Modal, Pill, EmptyState, CustomSelect, Pagination, ConfirmModal, Spinner } from '../components/ui'
 import { num } from '../lib/format'
 
 const blank = { name: '', nasname: '', shortname: '', type: 'mikrotik', secret: '', api_ip: '', api_username: '', api_password: '', description: '', status: 'active' }
@@ -20,6 +20,8 @@ export default function Nas() {
   const [editId, setEditId] = useState<number | null>(null)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [pendingDeleteNas, setPendingDeleteNas] = useState<any>(null)
 
   // FreeRADIUS state
   const [radiusStatus, setRadiusStatus] = useState<any>(null)
@@ -44,7 +46,7 @@ export default function Nas() {
   const [clients, setClients] = useState<any[]>([])
   const [clientsLoading, setClientsLoading] = useState(false)
 
-  const { data: rows = [], refetch: load } = useQuery<any[]>('nas', () => api.get('/nas').then((r) => r.data.data))
+  const { data: rows = [], loading: rowsLoading, refetch: load } = useQuery<any[]>('nas', () => api.get('/nas').then((r) => r.data.data))
   
   const loadRadiusStatus = () => {
     setRadiusLoading(true)
@@ -108,9 +110,15 @@ export default function Nas() {
     } catch (e) { setErr(apiError(e)) } finally { setBusy(false) }
   }
 
-  const del = async (n: any) => {
-    if (!confirm(`Delete NAS "${n.name}"?`)) return
-    try { await api.delete(`/nas/${n.id}`); load() } catch (e) { alert(apiError(e)) }
+  const del = (n: any) => {
+    setPendingDeleteNas(n)
+    setConfirmDelete(true)
+  }
+
+  const executeDeleteNas = async () => {
+    if (!pendingDeleteNas) return
+    try { await api.delete(`/nas/${pendingDeleteNas.id}`); load() } catch (e) { alert(apiError(e)) }
+    finally { setConfirmDelete(false); setPendingDeleteNas(null) }
   }
 
   const runTestAuth = async () => {
@@ -159,7 +167,8 @@ export default function Nas() {
 
       {activeTab === 'nas' ? (
         <GlassCard className="!p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+          {rowsLoading && rows.length === 0 ? <Spinner /> : null}
+          <div className={`overflow-x-auto ${rowsLoading && rows.length === 0 ? 'hidden' : ''}`}>
             <table className="w-full">
               <thead><tr><th>Name</th><th>NAS Address</th><th>Type</th><th>API IP</th><th>Status</th>{isAdmin && <th></th>}</tr></thead>
               <tbody>
@@ -462,6 +471,15 @@ export default function Nas() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={confirmDelete}
+        onClose={() => { setConfirmDelete(false); setPendingDeleteNas(null) }}
+        onConfirm={executeDeleteNas}
+        title="Delete NAS"
+        message={`Are you sure you want to delete NAS "${pendingDeleteNas?.name}"? This action cannot be undone.`}
+        confirmText="Delete NAS"
+      />
     </div>
   )
 }

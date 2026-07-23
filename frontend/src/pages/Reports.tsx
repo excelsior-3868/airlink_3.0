@@ -4,7 +4,8 @@ import { api } from '../lib/api'
 import { useQuery } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { num, date, statusPill } from '../lib/format'
-import { GlassCard, PageTitle, Pill, StatCard, EmptyState, Pagination, CustomSelect } from '../components/ui'
+import { GlassCard, PageTitle, Pill, StatCard, EmptyState, Pagination, CustomSelect, Spinner } from '../components/ui'
+import { DualDatePicker } from '../components/DualDatePicker'
 
 export default function Reports() {
   const { user } = useAuth()
@@ -22,13 +23,13 @@ export default function Reports() {
   const { data: sellers = [] } = useQuery<any[]>('users/sellers', () => api.get('/users/sellers').then((r) => r.data.data.data), { enabled: user?.role === 'admin' || user?.role === 'reseller' })
 
   // Summary totals for cards
-  const { data: summary } = useQuery<any>(
+  const { data: summary, loading: summaryLoading } = useQuery<any>(
     `reports/package-summary?${JSON.stringify(appliedFilters)}`,
     () => api.get('/reports/package-summary', { params: appliedFilters }).then((r) => r.data.data),
   )
 
   // Vouchers list for the main table
-  const { data: vouchersData } = useQuery<any>(
+  const { data: vouchersData, loading: reportsLoading } = useQuery<any>(
     `reports/vouchers?${JSON.stringify(appliedFilters)}&page=${page}`,
     () => api.get('/vouchers', { params: { ...appliedFilters, page } }).then((r) => r.data.data),
   )
@@ -130,12 +131,12 @@ export default function Reports() {
             />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-slate-500 block">From</label>
-            <input type="date" className="input mt-1" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+            <label className="text-xs font-semibold text-slate-500 block mb-1">From Date</label>
+            <DualDatePicker label="From Date" value={filters.from} onChange={(val) => setFilters({ ...filters, from: val })} />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-slate-500 block">To</label>
-            <input type="date" className="input mt-1" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+            <label className="text-xs font-semibold text-slate-500 block mb-1">To Date</label>
+            <DualDatePicker label="To Date" value={filters.to} onChange={(val) => setFilters({ ...filters, to: val })} />
           </div>
           <div className="md:col-span-2">
             <label className="text-xs font-semibold text-slate-500 block">Status</label>
@@ -215,6 +216,9 @@ export default function Reports() {
         </div>
       </GlassCard>
 
+      {summaryLoading && !summary ? (
+        <div className="mb-6"><Spinner /></div>
+      ) : null}
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
           <StatCard label="Generated" value={<span className="text-indigo-600 font-bold">{num(summary.totals.generated)}</span>} />
@@ -227,7 +231,8 @@ export default function Reports() {
       )}
 
       <GlassCard className="!p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+        {reportsLoading && !vouchersData ? <Spinner /> : null}
+        <div className={`overflow-x-auto ${reportsLoading && !vouchersData ? 'hidden' : ''}`}>
           <table className="w-full">
             <thead>
               <tr>

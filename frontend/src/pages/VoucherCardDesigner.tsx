@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Save, CheckCircle, Image as ImageIcon, Plus, Trash2, RotateCcw, Palette, Users as Users2, UserCheck, ShieldCheck } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { GlassCard, PageTitle, EmptyState, CustomSelect, SelectOption } from '../components/ui'
+import { GlassCard, PageTitle, EmptyState, CustomSelect, SelectOption, ConfirmModal } from '../components/ui'
 import { CardElement, CardTemplate } from '../components/VoucherCard'
 
 const CANVAS_W = 640
@@ -52,6 +52,7 @@ export default function VoucherCardDesigner() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+  const [confirmRevert, setConfirmRevert] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null)
 
@@ -163,9 +164,9 @@ export default function VoucherCardDesigner() {
     } catch (e) { setErr(apiError(e)) } finally { setSaving(false) }
   }
 
-  const revertToDefault = async () => {
-    const who = targetUser ? `${targetUser.name}'s` : 'your'
-    if (!window.confirm(`Are you sure you want to revert ${who} custom design back to the admin default?`)) return
+  const revertToDefault = () => setConfirmRevert(true)
+
+  const executeRevertToDefault = async () => {
     setReverting(true); setErr(''); setMsg('')
     try {
       const params = isAdmin && targetUserId ? { user_id: targetUserId } : {}
@@ -482,6 +483,15 @@ export default function VoucherCardDesigner() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmRevert}
+        onClose={() => setConfirmRevert(false)}
+        onConfirm={executeRevertToDefault}
+        title="Revert to Default Design"
+        message={`Are you sure you want to revert ${targetUser ? `${targetUser.name}'s` : 'your'} custom design back to the admin default? This cannot be undone.`}
+        confirmText="Revert to Default"
+      />
     </div>
   )
 }

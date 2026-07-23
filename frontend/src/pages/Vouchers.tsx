@@ -92,12 +92,12 @@ export default function Vouchers() {
 
   const { data: plans = [], refetch: refetchPlans } = useQuery<any[]>('plans?active_only=1', () => api.get('/plans', { params: { active_only: 1 } }).then((r) => r.data.data))
 
-  const { data, refetch: load } = useQuery<any>(
+  const { data, loading: vouchersLoading, refetch: load } = useQuery<any>(
     `vouchers?page=${page}&${appliedVoucherKey}`,
     () => api.get('/vouchers', { params: { page, ...cleanFilters() } }).then((r) => r.data.data),
   )
 
-  const { data: batchesData, refetch: refetchBatches } = useQuery<any>(
+  const { data: batchesData, loading: batchesLoading, refetch: refetchBatches } = useQuery<any>(
     `batches?page=${batchesPage}&${appliedBatchKey}`,
     () => api.get('/batches', { params: { page: batchesPage, ...cleanBatchFilters() } }).then((r) => r.data.data),
     { enabled: activeTab === 'batches' },
@@ -221,7 +221,8 @@ export default function Vouchers() {
           </GlassCard>
 
           <GlassCard className="!p-0 overflow-hidden">
-            <div className="overflow-x-auto">
+            {vouchersLoading && !data ? <div className="py-8"><Spinner /></div> : null}
+            <div className={`overflow-x-auto ${vouchersLoading && !data ? 'hidden' : ''}`}>
               <table className="w-full">
                 <thead>
                   <tr>
@@ -307,7 +308,8 @@ export default function Vouchers() {
           </GlassCard>
 
           <GlassCard className="!p-0 overflow-hidden">
-            <div className="overflow-x-auto">
+            {batchesLoading && !batchesData ? <div className="py-8"><Spinner /></div> : null}
+            <div className={`overflow-x-auto ${batchesLoading && !batchesData ? 'hidden' : ''}`}>
               <table className="w-full">
                 <thead>
                   <tr>

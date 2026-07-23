@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle, Package } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Wallet, Database, Users2, Store, Ticket, TrendingUp, Wifi, WifiOff, History, UserCheck, LayoutDashboard, CreditCard, PlusCircle, Package, UserPlus, Receipt, Coins, Sparkles, Layers, Activity, BarChart3 } from 'lucide-react'
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { api } from '../lib/api'
 import { useQuery } from '../lib/cache'
@@ -10,6 +11,7 @@ import { motion } from 'framer-motion'
 import FundModal from '../components/FundModal'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const { data: d, loading, setData: setD } = useQuery<any>(
     'dashboard',
@@ -65,17 +67,10 @@ export default function Dashboard() {
         title="Dashboard" 
         subtitle={`${d.role.charAt(0).toUpperCase() + d.role.slice(1)} account overview & billing metrics`} 
         icon={<LayoutDashboard size={22} className="text-blue-500" />} 
-        action={
-          (user?.role === 'admin' || user?.role === 'reseller') && (
-            <button
-              onClick={() => setQuickFundOpen(true)}
-              className="btn-primary flex items-center gap-2"
-            >
-              <PlusCircle size={16} /> Quick Allocation
-            </button>
-          )
-        }
+        showBalances={true}
       />
+
+
 
       {/* Admin Dashboard */}
       {d.role === 'admin' && (
@@ -336,7 +331,7 @@ export default function Dashboard() {
       <Modal open={collectOpen} onClose={() => setCollectOpen(false)} title="Collect Payment" subtitle="Record cash payment received from a downline user. This immediately reduces their wallet due.">
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Select User</label>
+            <label className="text-xs font-bold text-slate-500 block mb-1.5">Select User</label>
             <select 
               className="input" 
               value={collectForm.user_id} 
@@ -360,12 +355,11 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Amount (Rs.)</label>
+            <label className="text-xs font-bold text-slate-500 block mb-1.5">Amount (Rs.)</label>
             <input 
-              className="input" 
-              type="number" 
-              min="0.01" 
-              step="0.01" 
+              className="input no-spinners" 
+              type="text" 
+              inputMode="decimal"
               placeholder="e.g. 5000" 
               value={collectForm.amount} 
               onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })} 
@@ -373,7 +367,7 @@ export default function Dashboard() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Payment Note</label>
+            <label className="text-xs font-bold text-slate-500 block mb-1.5">Payment Note</label>
             <input 
               className="input" 
               placeholder="e.g. Received via cash / bank transfer" 

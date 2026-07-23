@@ -4,7 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   LayoutDashboard, Package, Users2, Store, Wallet as WalletIcon,
   Database, Ticket, BarChart3, LogOut, Wifi, Router, ShieldCheck, Shield,
-  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight, Menu, X, Terminal, Calendar
+  ChevronDown, ChevronRight, Key, Gauge, ArrowLeftRight, Menu, X, Terminal, Calendar,
+  BookOpen, Receipt
 } from 'lucide-react'
 import { Role, useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
@@ -34,12 +35,11 @@ const NAV: NavItem[] = [
       { to: '/plans/bandwidth', label: 'Bandwidth Plan', roles: ['admin', 'reseller', 'seller'], icon: Gauge, color: 'text-violet-500' },
     ]
   },
-  { to: '/resellers', label: 'Resellers', icon: Users2, roles: ['admin'], color: 'text-purple-500', perm: 'view_resellers' },
-  { to: '/sellers', label: 'Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500', perm: 'view_sellers' },
-  { to: '/wallet', label: 'Wallet Allocation', icon: WalletIcon, roles: ['admin'], color: 'text-emerald-500', perm: 'wallet_load' },
-  { to: '/gb', label: 'GB Allocation', icon: Database, roles: ['admin', 'reseller', 'seller'], color: 'text-cyan-500', perm: 'allocate_gb' },
+  { to: '/resellers', label: 'Add/View Resellers', icon: Users2, roles: ['admin'], color: 'text-purple-500', perm: 'view_resellers' },
+  { to: '/sellers', label: 'Add/View Sellers', icon: Store, roles: ['admin', 'reseller'], color: 'text-amber-500', perm: 'view_sellers' },
+  { to: '/ledger', label: 'Accounting & Ledger', icon: BookOpen, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500' },
+  { to: '/funds', label: 'Wallet / GB Allocation', icon: WalletIcon, roles: ['admin', 'reseller', 'seller'], color: 'text-emerald-500' },
   { to: '/vouchers', label: 'Voucher Sales', icon: Ticket, roles: ['admin', 'reseller', 'seller'], color: 'text-rose-500', perm: 'generate_voucher' },
-  { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, roles: ['admin', 'reseller', 'seller'], color: 'text-blue-500', perm: 'view_transactions' },
   { to: '/reports', label: 'Voucher Usage Report', icon: BarChart3, roles: ['admin', 'reseller', 'seller'], color: 'text-teal-500', perm: 'reports' },
   { to: '/diagnostics', label: 'Voucher Diagnostics', icon: Terminal, roles: ['admin', 'reseller', 'seller'], color: 'text-slate-600' },
   {
@@ -250,7 +250,7 @@ export default function AppShell() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-extrabold text-sm text-[#003164] whitespace-normal break-words leading-tight select-none">{user.name}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 select-none">{user.role}</p>
+                <p className="text-[10px] text-slate-400 font-bold capitalize tracking-wider mt-0.5 select-none">{user.role}</p>
               </div>
             </div>
             <ChevronDown size={14} className={`text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''} shrink-0 ml-1`} />
@@ -274,12 +274,18 @@ export default function AppShell() {
             <p className="font-medium text-lg tracking-tight text-[#003164] leading-none">Airlink</p>
           </div>
 
-          {/* Compact balances */}
-          <div className="flex items-center gap-1.5 bg-white/70 border border-slate-200/80 rounded-2xl px-2.5 h-9 text-[11px] shadow-sm select-none">
+          {/* Separate compact badges */}
+          <div className="flex items-center gap-1.5 select-none">
             {user.role !== 'seller' && (
-              <span className="font-extrabold text-slate-800 border-r border-slate-200 pr-1.5">{rs(user.wallet_balance)}</span>
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 rounded-xl px-2.5 h-8 flex items-center text-[11px] shadow-2xs">
+                <span className="text-[10px] text-emerald-600 font-extrabold mr-1 capitalize">Wallet:</span>
+                <span className="font-extrabold text-emerald-950">{rs(user.wallet_balance)}</span>
+              </div>
             )}
-            <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/80 rounded-xl px-2.5 h-8 flex items-center text-[11px] shadow-2xs">
+              <span className="text-[10px] text-purple-600 font-extrabold mr-1">GB:</span>
+              <span className="font-extrabold text-purple-950">{gb(user.gb_balance)}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -341,7 +347,7 @@ export default function AppShell() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-extrabold text-sm text-[#003164] break-words leading-tight">{user.name}</p>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">{user.role}</p>
+                    <p className="text-[10px] text-slate-400 font-bold capitalize tracking-wider mt-0.5">{user.role}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

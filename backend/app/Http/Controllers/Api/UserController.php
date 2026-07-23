@@ -82,6 +82,47 @@ class UserController extends Controller
         return $this->created($seller, 'Seller created.');
     }
 
+    /** Update reseller or seller information. */
+    public function update(Request $request, User $user): JsonResponse
+    {
+        $actor = $request->user();
+        if (! $user->isManagedBy($actor)) {
+            return $this->fail('You are not authorized to manage this user.', 403);
+        }
+
+        $rules = [
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255', Rule::unique('users', 'username')->ignore($user->id)],
+            'email' => ['nullable', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'password' => ['nullable', 'string', 'min:6'],
+        ];
+
+        if ($actor->isAdmin()) {
+            $rules['gb_rate'] = ['nullable', 'numeric', 'min:0.01'];
+            if ($user->isSeller()) {
+                $rules['parent_id'] = ['nullable', 'integer', Rule::exists('users', 'id')->where('role', 'reseller')];
+            }
+        }
+
+        $data = $request->validate($rules);
+
+        if (! empty($data['password'])) {
+            $data['password'] = Hash::make($data['password']);
+        } else {
+            unset($data['password']);
+        }
+
+        if (! $actor->isAdmin()) {
+            unset($data['gb_rate']);
+            unset($data['parent_id']);
+        }
+
+        $user->update($data);
+
+        return $this->ok($user->fresh(), 'User updated successfully.');
+    }
+
     /** Enable/disable a user in the actor's subtree. */
     public function setStatus(Request $request, User $user): JsonResponse
     {

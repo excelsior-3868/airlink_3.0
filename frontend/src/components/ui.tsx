@@ -3,7 +3,10 @@ import { ReactNode, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search, Sparkles } from 'lucide-react'
+import { Check, ChevronDown, Tag, Zap, Clock, Ban, Ticket, PlusCircle, Search, Sparkles, Wallet, Database } from 'lucide-react'
+export { DualDatePicker } from './DualDatePicker'
+export { ConfirmModal } from './ConfirmModal'
+export type { ConfirmState } from './ConfirmModal'
 
 export function GlassCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`glass-card p-5 sm:p-6 ${className}`}>{children}</div>
@@ -88,7 +91,7 @@ export function VoucherStatCard({
   )
 }
 
-export function PageTitle({ title, subtitle, action, icon }: { title: string; subtitle?: string; action?: ReactNode; icon?: ReactNode }) {
+export function PageTitle({ title, subtitle, action, icon, showBalances = false }: { title: string; subtitle?: string; action?: ReactNode; icon?: ReactNode; showBalances?: boolean }) {
   const { user } = useAuth()
   return (
     <div className="flex items-start justify-between mb-6 flex-wrap gap-4 pt-4">
@@ -107,18 +110,28 @@ export function PageTitle({ title, subtitle, action, icon }: { title: string; su
       </div>
       
       <div className="flex items-center gap-3 flex-wrap">
-        {/* Wallet & GB Balance glass-badges — hidden on mobile (shown in the top app bar instead) */}
-        {user && (
-          <div className="hidden sm:flex items-center gap-2.5 bg-white/70 backdrop-blur-md border border-white/80 rounded-2xl p-2 px-3.5 shadow-sm text-xs select-none">
+        {/* Colorful Separate Wallet & GB Balance badges (Dashboard Only) */}
+        {showBalances && user && (
+          <div className="hidden sm:flex items-center gap-2.5 select-none">
             {user.role !== 'seller' && (
-              <div className="flex items-center gap-1.5 border-r border-slate-200/80 pr-2.5">
-                <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Wallet:</span>
-                <span className="font-extrabold text-slate-800">{rs(user.wallet_balance)}</span>
+              <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50/70 border border-emerald-200/80 rounded-2xl py-1.5 px-3.5 shadow-xs text-xs group hover:border-emerald-300 transition-all">
+                <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-600 flex items-center justify-center shrink-0">
+                  <Wallet size={13} />
+                </div>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[10px] text-emerald-600 font-extrabold tracking-wide">Wallet</span>
+                  <span className="font-extrabold text-emerald-950 text-xs">{rs(user.wallet_balance)}</span>
+                </div>
               </div>
             )}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">GB:</span>
-              <span className="font-extrabold text-slate-800">{gb(user.gb_balance)}</span>
+            <div className="flex items-center gap-2 bg-gradient-to-r from-purple-50 to-indigo-50/70 border border-purple-200/80 rounded-2xl py-1.5 px-3.5 shadow-xs text-xs group hover:border-purple-300 transition-all">
+              <div className="w-6 h-6 rounded-lg bg-purple-500/15 text-purple-600 flex items-center justify-center shrink-0">
+                <Database size={13} />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-[10px] text-purple-600 font-extrabold tracking-wide">GB Balance</span>
+                <span className="font-extrabold text-purple-950 text-xs">{gb(user.gb_balance)}</span>
+              </div>
             </div>
           </div>
         )}
@@ -181,9 +194,9 @@ export function Modal({
 }) {
   const backdropMouseDown = useRef(false)
   if (!open) return null
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-sm animate-fade-in"
       onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentTarget }}
       onMouseUp={(e) => { if (backdropMouseDown.current && e.target === e.currentTarget) onClose(); backdropMouseDown.current = false }}
     >
@@ -221,12 +234,24 @@ export function Modal({
           {children}
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
-export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="text-center text-muted-foreground text-sm py-12">{children}</div>
+export function EmptyState({ title, subtitle, children }: { title?: string; subtitle?: string; children?: ReactNode }) {
+  return (
+    <div className="text-center text-slate-500 py-12 px-4">
+      {children ? (
+        children
+      ) : (
+        <>
+          <p className="text-sm font-bold text-slate-700">{title || 'No Records Found'}</p>
+          {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+        </>
+      )}
+    </div>
+  )
 }
 
 export function Spinner({ className = '' }: { className?: string }) {
@@ -293,6 +318,7 @@ export function CustomSelect({
   }, [open])
 
   useEffect(() => {
+    if (!open) return
     function handleClickOutside(event: MouseEvent) {
       if (
         ref.current &&
@@ -302,9 +328,9 @@ export function CustomSelect({
         setOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('mousedown', handleClickOutside, true)
+    return () => document.removeEventListener('mousedown', handleClickOutside, true)
+  }, [open])
 
   useEffect(() => {
     if (!open) {
@@ -362,7 +388,7 @@ export function CustomSelect({
   const selected = resolvedOptions.find((o) => o.value === value)
 
   return (
-    <div ref={ref} className={`relative inline-block text-left min-w-[180px] ${open ? 'z-30' : 'z-0'} ${className}`}>
+    <div ref={ref} className={`relative text-left ${className.includes('w-full') ? 'w-full block' : 'inline-block min-w-[180px]'} ${open ? 'z-30' : 'z-0'} ${className}`}>
       {/* Trigger Button */}
       <button
         type="button"
@@ -466,3 +492,16 @@ export function CustomSelect({
     </div>
   )
 }
+
+export function Combobox(props: {
+  value: any;
+  onChange: (val: any) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  className?: string;
+  disabled?: boolean;
+  searchable?: boolean;
+}) {
+  return <CustomSelect searchable={props.searchable !== false} {...props} />
+}
+

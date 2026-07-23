@@ -5,7 +5,7 @@ import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { GlassCard, PageTitle, Modal, Pill, EmptyState } from '../components/ui'
+import { GlassCard, PageTitle, Modal, Pill, EmptyState, ConfirmModal, Spinner } from '../components/ui'
 
 const blank = { name: '', type: 'pppoe', plan_type: 'data', bandwidth_id: '', data_gb: '', time_limit: '', validity_days: 1, base_price: 0, selling_price: 0, status: 'active' }
 
@@ -19,7 +19,7 @@ export default function PppoePlans() {
   const [busy, setBusy] = useState(false)
   const [activeTab, setActiveTab] = useState<'my' | 'admin' | 'seller'>('my')
 
-  const { data: plans = [], refetch: refetchPlans } = useQuery<any[]>('plans?type=pppoe', () => api.get('/plans?type=pppoe').then((r) => r.data.data))
+  const { data: plans = [], loading: plansLoading, refetch: refetchPlans } = useQuery<any[]>('plans?type=pppoe', () => api.get('/plans?type=pppoe').then((r) => r.data.data))
   const { data: bandwidths = [] } = useQuery<any[]>('bandwidths', () => api.get('/bandwidths').then((r) => r.data.data))
 
   // Refresh this page's plans and drop other cached plan lists after a change.
@@ -69,14 +69,10 @@ export default function PppoePlans() {
     }
   }
 
-  const del = async (p: any) => {
-    if (!confirm(`Delete PPPOE plan "${p.name}"?`)) return
-    try {
-      await api.delete(`/plans/${p.id}`)
-      load()
-    } catch (e) {
-      alert(apiError(e))
-    }
+  const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; plan: any }>({ open: false, plan: null })
+
+  const del = (p: any) => {
+    setConfirmDelete({ open: true, plan: p })
   }
 
   const filteredPlans = plans.filter((p) => {
@@ -140,72 +136,76 @@ export default function PppoePlans() {
       )}
 
       <GlassCard className="!p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Bandwidth</th>
-                <th>Data</th>
-                <th>Validity</th>
-                <th>Price</th>
-                {user?.role === 'reseller' && activeTab === 'seller' && (
-                  <>
-                    <th>Created By</th>
-                    <th>Seller GB Balance</th>
-                  </>
-                )}
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPlans.map((p, idx) => (
-                <motion.tr
-                  key={p.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  className="hover:bg-secondary/30 transition-all"
-                >
-                  <td className="font-semibold">{p.name}</td>
-                  <td className="capitalize">{p.plan_type}</td>
-                  <td>{p.bandwidth || '—'}</td>
-                  <td>{p.data_gb ? gb(p.data_gb) : '—'}</td>
-                  <td>{p.validity_days}d</td>
-                  <td>{rs(p.selling_price)}</td>
+        {plansLoading ? (
+          <Spinner />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Bandwidth</th>
+                  <th>Data</th>
+                  <th>Validity</th>
+                  <th>Price</th>
                   {user?.role === 'reseller' && activeTab === 'seller' && (
                     <>
-                      <td className="font-medium text-slate-600">
-                        {p.creator ? `${p.creator.name} (${p.creator.username})` : '—'}
-                      </td>
-                      <td className="font-medium text-cyan-600">
-                        {p.creator ? gb(p.creator.gb_balance) : '—'}
-                      </td>
+                      <th>Created By</th>
+                      <th>Seller GB Balance</th>
                     </>
                   )}
-                  <td>
-                    <Pill tone={p.status === 'active' ? 'success' : 'secondary'}>{p.status}</Pill>
-                  </td>
-                  <td className="text-right whitespace-nowrap">
-                    {(isAdmin || p.created_by === user?.id) && (
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPlans.map((p, idx) => (
+                  <motion.tr
+                    key={p.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="hover:bg-secondary/30 transition-all"
+                  >
+                    <td className="font-semibold">{p.name}</td>
+                    <td className="capitalize">{p.plan_type}</td>
+                    <td>{p.bandwidth || '—'}</td>
+                    <td>{p.data_gb ? gb(p.data_gb) : '—'}</td>
+                    <td>{p.validity_days}d</td>
+                    <td>{rs(p.selling_price)}</td>
+                    {user?.role === 'reseller' && activeTab === 'seller' && (
                       <>
-                        <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => openEdit(p)}>
-                          Edit
-                        </button>
-                        <button className="text-xs font-bold text-rose-500 hover:underline" onClick={() => del(p)}>
-                          Delete
-                        </button>
+                        <td className="font-medium text-slate-600">
+                          {p.creator ? `${p.creator.name} (${p.creator.username})` : '—'}
+                        </td>
+                        <td className="font-medium text-cyan-600">
+                          {p.creator ? gb(p.creator.gb_balance) : '—'}
+                        </td>
                       </>
                     )}
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredPlans.length === 0 && <EmptyState>No PPPOE plans yet.</EmptyState>}
-        </div>
+                    <td>
+                      <Pill tone={p.status === 'active' ? 'success' : 'secondary'}>{p.status}</Pill>
+                    </td>
+                    <td className="text-right whitespace-nowrap">
+                      {(isAdmin || p.created_by === user?.id) && (
+                        <>
+                          <button className="text-xs font-bold text-primary hover:underline mr-3" onClick={() => openEdit(p)}>
+                            Edit
+                          </button>
+                          <button className="text-xs font-bold text-rose-500 hover:underline" onClick={() => del(p)}>
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+            {filteredPlans.length === 0 && <EmptyState>No PPPOE plans yet.</EmptyState>}
+          </div>
+        )}
       </GlassCard>
 
       <Modal open={open} onClose={() => setOpen(false)} title={editId ? 'Edit PPPOE Plan' : 'New PPPOE Plan'}>
@@ -335,6 +335,23 @@ export default function PppoePlans() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={confirmDelete.open}
+        onClose={() => setConfirmDelete({ open: false, plan: null })}
+        onConfirm={async () => {
+          if (!confirmDelete.plan) return
+          try {
+            await api.delete(`/plans/${confirmDelete.plan.id}`)
+            load()
+          } catch (e: any) {
+            setErr(apiError(e))
+          }
+        }}
+        title="Delete PPPOE Plan"
+        message={`Are you sure you want to delete PPPOE plan "${confirmDelete.plan?.name}"?`}
+        confirmText="Delete Plan"
+      />
     </div>
   )
 }

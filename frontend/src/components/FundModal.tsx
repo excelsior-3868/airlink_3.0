@@ -176,7 +176,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
       <div className="space-y-5">
         {/* User Selection */}
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+          <label className="text-xs font-bold text-slate-500 block mb-1.5">
             Select Recipient (Reseller / Seller)
           </label>
           <CustomSelect
@@ -198,7 +198,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
             {/* Allocation Type Switch (Admin only) */}
             {user?.role === 'admin' ? (
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase block mb-2">
+                <label className="text-xs font-bold text-slate-500 block mb-2">
                   Allocation Type
                 </label>
                 <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl">
@@ -255,7 +255,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
               <div className="space-y-4">
                 {/* GB amount */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5 flex items-center gap-1">
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5 flex items-center gap-1">
                     <Database size={14} className="text-cyan-500" />
                     GB Amount
                   </label>
@@ -304,7 +304,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
 
                 {/* Note */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5">
                     Note / Reference
                   </label>
                   <input
@@ -324,7 +324,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
               <div className="space-y-4">
                 {/* Wallet load amount */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5 flex items-center gap-1">
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5 flex items-center gap-1">
                     <Wallet size={14} className="text-emerald-500" />
                     Wallet Amount (Rs.)
                   </label>
@@ -341,7 +341,7 @@ export default function FundModal({ open, onClose, onSuccess }: FundModalProps) 
 
                 {/* Note */}
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">
+                  <label className="text-xs font-bold text-slate-500 block mb-1.5">
                     Note / Reference
                   </label>
                   <input

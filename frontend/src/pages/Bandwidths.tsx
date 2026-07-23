@@ -4,7 +4,7 @@ import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react'
 import { api, apiError } from '../lib/api'
 import { useQuery, invalidateCache } from '../lib/cache'
 import { useAuth } from '../lib/auth'
-import { GlassCard, PageTitle, Modal, EmptyState } from '../components/ui'
+import { GlassCard, PageTitle, Modal, Pill, EmptyState, ConfirmModal, Spinner } from '../components/ui'
 
 const blank = { name: '', rate_down: 1, rate_down_unit: 'Mbps', rate_up: 1, rate_up_unit: 'Mbps' }
 
@@ -19,7 +19,7 @@ export default function Bandwidths() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
 
-  const { data: bandwidths = [], refetch } = useQuery<any[]>(
+  const { data: bandwidths = [], loading: bwLoading, refetch } = useQuery<any[]>(
     `bandwidths?search=${query}`,
     () => api.get(`/bandwidths?search=${query}`).then((r) => r.data.data),
   )
@@ -114,46 +114,50 @@ export default function Bandwidths() {
       </form>
 
       <GlassCard className="!p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="w-12 text-center">S.N.</th>
-                <th>Bandwidth Name</th>
-                <th>Rate Download</th>
-                <th>Rate Upload</th>
-                {isAdmin && <th className="text-right pr-6 w-24">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {bandwidths.map((b, idx) => (
-                <motion.tr
-                  key={b.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  className="hover:bg-secondary/30 transition-all"
-                >
-                  <td className="text-center font-medium text-slate-500">{idx + 1}</td>
-                  <td className="font-semibold text-slate-800">{b.name}</td>
-                  <td>{b.rate_down} {b.rate_down_unit}</td>
-                  <td>{b.rate_up} {b.rate_up_unit}</td>
-                    <td className="text-right whitespace-nowrap pr-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end">
-                        <button className="text-primary hover:text-indigo-700 mr-2 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" title="Edit" onClick={() => openEdit(b)}>
-                          <Pencil size={14} />
-                        </button>
-                        <button className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50/80 transition-all inline-flex items-center justify-center" title="Delete" onClick={() => del(b)}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
-          {bandwidths.length === 0 && <EmptyState>No bandwidth plans found.</EmptyState>}
-        </div>
+        {bwLoading ? (
+          <Spinner />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="w-12 text-center">S.N.</th>
+                  <th>Bandwidth Name</th>
+                  <th>Rate Download</th>
+                  <th>Rate Upload</th>
+                  {isAdmin && <th className="text-right pr-6 w-24">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {bandwidths.map((b, idx) => (
+                  <motion.tr
+                    key={b.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    className="hover:bg-secondary/30 transition-all"
+                  >
+                    <td className="text-center font-medium text-slate-500">{idx + 1}</td>
+                    <td className="font-semibold text-slate-800">{b.name}</td>
+                    <td>{b.rate_down} {b.rate_down_unit}</td>
+                    <td>{b.rate_up} {b.rate_up_unit}</td>
+                      <td className="text-right whitespace-nowrap pr-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end">
+                          <button className="text-primary hover:text-indigo-700 mr-2 p-1.5 rounded-lg hover:bg-slate-100/80 transition-all inline-flex items-center justify-center" title="Edit" onClick={() => openEdit(b)}>
+                            <Pencil size={14} />
+                          </button>
+                          <button className="text-rose-500 hover:text-rose-700 p-1.5 rounded-lg hover:bg-rose-50/80 transition-all inline-flex items-center justify-center" title="Delete" onClick={() => del(b)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+            {bandwidths.length === 0 && <EmptyState>No bandwidth plans found.</EmptyState>}
+          </div>
+        )}
       </GlassCard>
 
       <Modal open={open} onClose={() => setOpen(false)} title={editId ? 'Edit Bandwidth Plan' : 'New Bandwidth Plan'}>

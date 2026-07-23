@@ -39,7 +39,7 @@ export default function ChangePasswordModal({ open, onClose }: { open: boolean; 
     >
       <div className="space-y-4">
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Current Password</label>
+          <label className="text-xs font-bold text-slate-500 block mb-1.5">Current Password</label>
           <input
             className="input"
             type="password"
@@ -50,7 +50,7 @@ export default function ChangePasswordModal({ open, onClose }: { open: boolean; 
         </div>
 
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">New Password</label>
+          <label className="text-xs font-bold text-slate-500 block mb-1.5">New Password</label>
           <input
             className="input"
             type="password"
@@ -61,7 +61,7 @@ export default function ChangePasswordModal({ open, onClose }: { open: boolean; 
         </div>
 
         <div>
-          <label className="text-xs font-bold text-slate-500 uppercase block mb-1.5">Confirm New Password</label>
+          <label className="text-xs font-bold text-slate-500 block mb-1.5">Confirm New Password</label>
           <input
             className="input"
             type="password"

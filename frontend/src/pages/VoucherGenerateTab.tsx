@@ -4,7 +4,7 @@ import { Ticket, AlertTriangle, Printer, Zap, Plus, Pencil, Loader2, Wallet, Dat
 import { api, apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { rs, gb } from '../lib/format'
-import { GlassCard, CustomSelect, SelectOption, Modal, Spinner } from '../components/ui'
+import { GlassCard, CustomSelect, SelectOption, Modal, Spinner, ConfirmModal } from '../components/ui'
 import { VoucherCard, CardTemplate } from '../components/VoucherCard'
 
 const generateDefaultBatchCode = () => {
@@ -574,19 +574,26 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
     }
   }
 
-  // Handle Delete Package
-  const handleDeletePackage = async () => {
-    if (!editingPlan) return
-    if (!window.confirm(`Are you sure you want to delete the package "${editingPlan.name}"?`)) return
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Handle Delete Package
+  const handleDeletePackage = () => {
+    if (!editingPlan) return
+    setConfirmDelete(true)
+  }
+
+  const executeDeletePackage = async () => {
+    if (!editingPlan) return
     setEditBusy(true)
     setEditErr('')
     try {
       await api.delete(`/plans/${editingPlan.id}`)
       refetchPlans()
       setEditingPlan(null)
+      setConfirmDelete(false)
     } catch (err) {
       setEditErr(apiError(err))
+      setConfirmDelete(false)
     } finally {
       setEditBusy(false)
     }
@@ -1020,6 +1027,15 @@ export default function VoucherGenerateTab({ plans, refetchPlans, onSuccess }: V
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={executeDeletePackage}
+        title="Delete Package"
+        message={`Are you sure you want to delete the package "${editingPlan?.name}"?`}
+        confirmText="Delete Package"
+      />
     </div>
   )
 }

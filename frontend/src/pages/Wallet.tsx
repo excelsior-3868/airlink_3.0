@@ -32,7 +32,7 @@ export default function Wallet() {
               onClick={() => setFundOpen(true)}
               className="btn-primary flex items-center gap-2"
             >
-              <PlusCircle size={16} /> Fund Downline
+              <PlusCircle size={16} /> Allocate Wallet
             </button>
           )
         }
